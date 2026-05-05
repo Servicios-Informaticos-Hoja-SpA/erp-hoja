@@ -82,7 +82,13 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
   isSaving,
   totales
 }) => {
-  const [newClient, setNewClient] = useState({ nombre: "", rut: "", email: "", telefono: "", contacto: "" });
+  const [newClient, setNewClient] = useState({ 
+    nombre: "", 
+    telefono: "", 
+    social_instagram: "", 
+    social_linkedin: "", 
+    social_web: "" 
+  });
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
 
@@ -91,7 +97,13 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
     setIsCreatingClient(true);
     try {
       await onAddClient(newClient);
-      setNewClient({ nombre: "", rut: "", email: "", telefono: "", contacto: "" });
+      setNewClient({ 
+        nombre: "", 
+        telefono: "", 
+        social_instagram: "", 
+        social_linkedin: "", 
+        social_web: "" 
+      });
       setIsClientDialogOpen(false);
     } finally {
       setIsCreatingClient(false);
@@ -140,22 +152,23 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                           <Input placeholder="Ej: Juan Perez" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
                         </div>
                         <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase text-primary/40">RUT</Label>
-                          <Input placeholder="12.345.678-9" value={newClient.rut} onChange={e => setNewClient({...newClient, rut: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                          <Label className="text-[10px] font-black uppercase text-primary/40">Teléfono</Label>
+                          <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                            <Label className="text-[10px] font-black uppercase text-primary/40">Email</Label>
-                            <Input placeholder="email@ejemplo.com" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                        
+                        <div className="pt-2 border-t border-muted/20 mt-2">
+                          <Label className="text-[10px] font-black uppercase text-[#abaafd] mb-4 block">Redes Sociales / Web</Label>
+                          <div className="grid gap-3">
+                            <div className="relative">
+                              <Input placeholder="Instagram (@usuario)" value={newClient.social_instagram} onChange={e => setNewClient({...newClient, social_instagram: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
+                            </div>
+                            <div className="relative">
+                              <Input placeholder="LinkedIn (URL)" value={newClient.social_linkedin} onChange={e => setNewClient({...newClient, social_linkedin: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
+                            </div>
+                            <div className="relative">
+                              <Input placeholder="Sitio Web (https://...)" value={newClient.social_web} onChange={e => setNewClient({...newClient, social_web: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
+                            </div>
                           </div>
-                          <div className="grid gap-2">
-                            <Label className="text-[10px] font-black uppercase text-primary/40">Teléfono</Label>
-                            <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
-                          </div>
-                        </div>
-                        <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase text-primary/40">Persona de Contacto</Label>
-                          <Input placeholder="Ej: Gerente Comercial" value={newClient.contacto} onChange={e => setNewClient({...newClient, contacto: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
                         </div>
                       </div>
                       <Button onClick={handleCreateClient} disabled={isCreatingClient} className="w-full rounded-full bg-[#abaafd] text-[#2e3c7e] font-black hover:scale-105 transition-all">Guardar</Button>
