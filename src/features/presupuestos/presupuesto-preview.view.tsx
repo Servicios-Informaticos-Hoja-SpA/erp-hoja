@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { ZoomIn, ZoomOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Presupuesto, ConfiguracionGlobal } from "@/lib/types";
 
 interface PresupuestoPreviewProps {
@@ -9,6 +11,7 @@ interface PresupuestoPreviewProps {
 }
 
 export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, config }) => {
+  const [isZoomed, setIsZoomed] = React.useState(false);
   if (!data) return null;
 
   const formatDate = (date: any) => {
@@ -27,9 +30,24 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
 
   return (
     <div className="w-full relative pb-10 min-h-[500px] sm:min-h-[900px]">
+      {/* Botón de Zoom Flotante para Móvil */}
+      <div className="fixed bottom-6 right-6 z-[110] sm:hidden">
+        <Button
+          onClick={() => setIsZoomed(!isZoomed)}
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-2xl bg-[#2e3c7e] text-white border-2 border-white/20"
+        >
+          {isZoomed ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
+        </Button>
+      </div>
+
       <div 
         id="presupuesto-document" 
-        className="bg-white text-slate-900 p-8 sm:p-16 w-[800px] min-h-[1100px] shadow-2xl absolute left-1/2 -translate-x-1/2 top-0 overflow-hidden border border-slate-100 flex flex-col font-sans origin-top scale-[0.38] sm:scale-75 md:scale-90 lg:scale-100 transition-transform duration-500 shrink-0"
+        className={`bg-white text-slate-900 p-8 sm:p-16 w-[800px] min-h-[1100px] shadow-2xl absolute left-1/2 -translate-x-1/2 top-0 overflow-hidden border border-slate-100 flex flex-col font-sans origin-top transition-all duration-500 shrink-0 ${
+          isZoomed 
+            ? "scale-100 mb-0 z-50 shadow-[0_0_100px_rgba(0,0,0,0.5)]" 
+            : "scale-[0.38] sm:scale-75 md:scale-90 lg:scale-100"
+        }`}
         style={{ color: '#0f172a', backgroundColor: '#ffffff' }}
       >
         {/* Header */}
