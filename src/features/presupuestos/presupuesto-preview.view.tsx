@@ -26,10 +26,10 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
   const calculatedTotal = calculatedNeto + calculatedIva;
 
   return (
-    <div className="w-full overflow-x-hidden pb-10 flex justify-center">
+    <div className="w-full overflow-x-hidden pb-10 flex justify-center items-start">
       <div 
         id="presupuesto-document" 
-        className="bg-white text-slate-900 p-8 sm:p-16 mx-auto w-[800px] min-h-[1100px] shadow-2xl relative overflow-hidden border border-slate-100 flex flex-col font-sans origin-top scale-[0.4] sm:scale-75 md:scale-90 lg:scale-100 mb-[-600px] sm:mb-[-200px] md:mb-[-100px] lg:mb-0 transition-transform duration-500"
+        className="bg-white text-slate-900 p-8 sm:p-16 w-[800px] min-h-[1100px] shadow-2xl relative overflow-hidden border border-slate-100 flex flex-col font-sans origin-top scale-[0.38] sm:scale-75 md:scale-90 lg:scale-100 mb-[-650px] sm:mb-[-200px] md:mb-[-100px] lg:mb-0 transition-transform duration-500"
         style={{ color: '#0f172a', backgroundColor: '#ffffff' }}
       >
         {/* Header */}
