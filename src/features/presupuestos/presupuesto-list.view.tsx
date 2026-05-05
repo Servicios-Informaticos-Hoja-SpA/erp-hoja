@@ -132,7 +132,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                   </div>
                   <div className="flex sm:gap-2 justify-end sm:justify-start border-t sm:border-none pt-3 sm:pt-0 border-muted/20">
                     <Tooltip>
-                      <TooltipTrigger asChild>
+                      <TooltipTrigger>
                         <span 
                           onClick={(e) => { e.stopPropagation(); onView(p); }}
                           className="rounded-full bg-muted/30 hover:bg-primary/10 hover:text-primary transition-all flex-1 sm:flex-none h-10 w-10 flex items-center justify-center cursor-pointer"
@@ -144,7 +144,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                     </Tooltip>
 
                     <Tooltip>
-                      <TooltipTrigger asChild>
+                      <TooltipTrigger>
                         <span 
                           onClick={(e) => { e.stopPropagation(); onDownload(p); }}
                           className="rounded-full bg-muted/30 hover:bg-secondary/10 hover:text-secondary transition-all flex-1 sm:flex-none h-10 w-10 flex items-center justify-center cursor-pointer"
@@ -156,7 +156,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                     </Tooltip>
 
                     <Tooltip>
-                      <TooltipTrigger asChild>
+                      <TooltipTrigger>
                         <span 
                           onClick={(e) => { e.stopPropagation(); onEdit(p.id!); }}
                           className="rounded-full bg-muted/30 hover:bg-primary/10 hover:text-primary transition-all flex-1 sm:flex-none h-10 w-10 flex items-center justify-center cursor-pointer"
