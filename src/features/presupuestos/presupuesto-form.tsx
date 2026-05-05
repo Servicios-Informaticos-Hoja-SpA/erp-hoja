@@ -244,7 +244,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       />
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
+        <DialogContent showCloseButton={false} className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
           <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <Button 
