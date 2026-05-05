@@ -84,7 +84,20 @@ export const generatePDF = async (elementId: string, filename: string, action: '
     const finalWidth = pdfWidth;
     const finalHeight = pdfWidth / ratio;
 
-    pdf.addImage(imgData, "JPEG", 0, 0, finalWidth, finalHeight);
+    let heightLeft = finalHeight;
+    let position = 0;
+
+    // Primera página
+    pdf.addImage(imgData, "JPEG", 0, position, finalWidth, finalHeight);
+    heightLeft -= pdfHeight;
+
+    // Páginas adicionales si el contenido es muy largo
+    while (heightLeft > 80) { // Solo agregamos página si queda contenido significativo (ej. más que una sombra/padding)
+      position = heightLeft - finalHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, finalWidth, finalHeight);
+      heightLeft -= pdfHeight;
+    }
     
     if (action === 'preview') {
       const blob = pdf.output('bloburl');

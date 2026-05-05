@@ -10,6 +10,7 @@ import {
   Presupuesto, 
   ConfiguracionGlobal 
 } from "@/lib/types";
+import { generatePDF } from "@/lib/pdf-utils";
 import { 
   getClientes, 
   getCatalogo, 
@@ -149,7 +150,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     setParams(newParams);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options: { download?: boolean, close?: boolean } = { close: true }) => {
     if (!selectedCliente || items.length === 0) {
       toast.warning("Selecciona un cliente y añade al menos un ítem.");
       return;
@@ -176,14 +177,24 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       await savePresupuesto(presupuesto);
       toast.success(id ? "Presupuesto actualizado (Nueva versión)" : "Presupuesto guardado.");
       
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push("/presupuestos");
+      if (options.download) {
+        toast.info("Generando PDF...");
+        // Esperamos a que el template oculto esté listo
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const filename = `COT_${nextNumber}_${presupuesto.cliente_nombre.replace(/\s+/g, '_').toUpperCase()}`;
+        await generatePDF("presupuesto-document-print", filename, 'save');
+      }
+
+      if (options.close) {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push("/presupuestos");
+        }
       }
     } catch (err) {
       console.error(err);
-      toast.error("Error al guardar.");
+      toast.error("Error al procesar la solicitud.");
     } finally {
       setIsSaving(false);
     }
@@ -237,7 +248,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         removeParam={removeParam}
         updateParam={updateParam}
         onPreview={() => setIsPreviewOpen(true)}
-        onSave={handleSave}
+        onSave={() => handleSave({ close: true, download: false })}
         onAddClient={handleAddClient}
         isSaving={isSaving}
         totales={{ neto, iva, total: totalFinal }}
@@ -245,6 +256,11 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent showCloseButton={false} className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
+          {/* Hidden template for PDF generation */}
+          <div className="fixed left-[-9999px] top-0 pointer-events-none">
+            <PresupuestoPreview data={currentData} config={config} isPrinting={true} />
+          </div>
+          
           <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <Button 
@@ -261,10 +277,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
               </div>
             </div>
             <Button 
-              onClick={handleSave}
+              onClick={() => handleSave({ download: true, close: true })}
               className="rounded-full bg-[#2e3c7e] text-white hover:scale-105 transition-all gap-2"
             >
-              <Save className="h-4 w-4" /> <span className="hidden xs:inline">Guardar y Descargar</span>
+              <Save className="h-4 w-4" /> <span className="hidden sm:inline">Guardar y Descargar</span>
             </Button>
           </DialogHeader>
           <div className="h-[75vh] overflow-auto">

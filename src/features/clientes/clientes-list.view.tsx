@@ -114,10 +114,10 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
             onClick={onLogout}
             className="gap-2 text-muted-foreground hover:text-destructive transition-colors font-bold px-2 sm:px-4"
           >
-            <LogOut className="h-4 w-4" /> <span className="hidden xs:inline">Cerrar Sesión</span>
+            <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar Sesión</span>
           </Button>
           <Button onClick={onAdd} className="gap-2 rounded-2xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-lg font-black shadow-xl shadow-[#abaafd]/20 bg-[#abaafd] text-[#2e3c7e] transition-all hover:scale-105">
-            <Plus className="h-4 w-4 sm:h-5 sm:w-5" /> <span className="whitespace-nowrap">Nuevo <span className="hidden xs:inline">Cliente</span></span>
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" /> <span className="whitespace-nowrap">Nuevo <span className="hidden sm:inline">Cliente</span></span>
           </Button>
         </div>
       </div>
@@ -164,21 +164,26 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
                       </div>
 
                       {/* Iconos de Redes Sociales */}
-                      <div className="flex gap-2 sm:gap-3 pt-2">
+                      <div className="flex flex-wrap gap-2 pt-2">
                         {c.social_web && (
-                          <a href={c.social_web} target="_blank" rel="noopener noreferrer" className="p-2 bg-secondary/10 rounded-xl text-secondary hover:bg-secondary hover:text-white transition-all">
-                            <Globe className="h-4 w-4" />
+                          <a href={c.social_web} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-secondary/10 rounded-xl text-secondary hover:bg-secondary hover:text-white transition-all text-[10px] font-black uppercase tracking-tight">
+                            <Globe className="h-3.5 w-3.5" /> Sitio Web
                           </a>
                         )}
                         {c.social_instagram && (
-                          <a href={`https://instagram.com/${c.social_instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-pink-500/10 rounded-xl text-pink-500 hover:bg-pink-500 hover:text-white transition-all">
-                            <Camera className="h-4 w-4" />
+                          <a href={`https://instagram.com/${c.social_instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-pink-500/10 rounded-xl text-pink-500 hover:bg-pink-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-tight">
+                            <Camera className="h-3.5 w-3.5" /> Instagram
                           </a>
                         )}
                         {c.social_linkedin && (
-                          <a href={c.social_linkedin} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-600/10 rounded-xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all">
-                            <Share2 className="h-4 w-4" />
+                          <a href={c.social_linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 rounded-xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black uppercase tracking-tight">
+                            <Share2 className="h-3.5 w-3.5" /> LinkedIn
                           </a>
+                        )}
+                        {c.social_otro && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-xl text-muted-foreground text-[10px] font-black uppercase tracking-tight italic">
+                            <Info className="h-3.5 w-3.5" /> {c.social_otro}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -251,21 +256,22 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && !isDeleting && setDeleteId(null)}>
-        <AlertDialogContent className="border-none shadow-2xl rounded-3xl bg-slate-900 text-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-black tracking-tight">¿Confirmar eliminación?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400 text-base">
-              Esta acción eliminará permanentemente al cliente de Hoja SpA Cloud.
+        <AlertDialogContent className="border-none shadow-2xl rounded-3xl bg-[#0c1222] text-white p-6 max-w-[400px]">
+          <AlertDialogHeader className="space-y-3 items-start text-left">
+            <AlertDialogTitle className="text-xl font-bold tracking-tight">¿Confirmar eliminación?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400 text-sm leading-relaxed text-left">
+              Esta acción eliminará permanentemente al cliente de <span className="text-white font-semibold">Hoja SpA Cloud</span>.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-3">
-            <AlertDialogCancel disabled={isDeleting} className="rounded-full border-none bg-slate-800 hover:bg-slate-700 text-white">Cancelar</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2 pt-6 mt-0 bg-transparent border-none m-0 p-0 flex-row justify-end">
+            <AlertDialogCancel disabled={isDeleting} className="rounded-xl border-none bg-slate-800 hover:bg-slate-700 text-white h-10 px-4 m-0 font-medium text-sm">Cancelar</AlertDialogCancel>
             <Button 
               disabled={isDeleting}
               onClick={handleConfirmDelete}
-              className="rounded-full bg-destructive text-white hover:bg-destructive/90 px-8 gap-2"
+              variant="destructive"
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700 h-10 px-4 font-bold text-sm gap-2 m-0"
             >
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar Definitivamente"}
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

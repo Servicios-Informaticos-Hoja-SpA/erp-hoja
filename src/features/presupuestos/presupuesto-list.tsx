@@ -75,10 +75,10 @@ export const PresupuestoList = () => {
       setGlobalConfig(config);
       
       // Esperamos un pequeño frame para asegurar que el DOM se renderizó con los nuevos estados
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const filename = `COT_${p.numero}_${p.cliente_nombre.replace(/\s+/g, '_').toUpperCase()}`;
-      await generatePDF("presupuesto-document", filename, action);
+      await generatePDF("presupuesto-document-print", filename, action);
       toast.success(action === 'preview' ? "Vista previa generada" : "Documento descargado");
     } catch (err) {
       console.error(err);
@@ -174,12 +174,15 @@ export const PresupuestoList = () => {
           <p className="text-sm text-muted-foreground font-medium">Hoja SpA Engine v2.0</p>
           
           {/* Hidden template for PDF generation */}
-          <div className="fixed left-[-9999px] top-0">
+          <div className="fixed left-[-9999px] top-0 pointer-events-none">
             {downloadingPresupuesto && (
-              <PresupuestoPreview 
-                data={downloadingPresupuesto} 
-                config={globalConfig} 
-              />
+              <div id="presupuesto-document-print">
+                <PresupuestoPreview 
+                  data={downloadingPresupuesto} 
+                  config={globalConfig} 
+                  isPrinting={true}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -211,7 +214,7 @@ export const PresupuestoList = () => {
               }}
               className="rounded-full bg-[#2e3c7e] text-white hover:scale-105 transition-all gap-2"
             >
-              <Download className="h-4 w-4" /> <span className="hidden xs:inline">Descargar PDF</span>
+              <Download className="h-4 w-4" /> <span className="hidden sm:inline">Descargar PDF</span>
             </Button>
           </DialogHeader>
           <div className="h-[75vh] overflow-auto">

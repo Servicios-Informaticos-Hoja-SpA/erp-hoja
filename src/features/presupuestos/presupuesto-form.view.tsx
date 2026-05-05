@@ -117,19 +117,19 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
       
       {/* AREA DE CONTENIDO CON SCROLL NATIVO - MAS FIABLE */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted">
-        <div className="mx-auto w-full max-w-5xl space-y-8 sm:space-y-12 px-6 sm:px-12 py-8 sm:py-16">
+        <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-12 px-4 sm:px-12 py-6 sm:py-16">
           
           {/* Header Seccionado */}
-          <div className="flex flex-col gap-10">
+          <div className="flex flex-col gap-6 sm:gap-10">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <h1 className="text-4xl font-black tracking-tighter text-foreground leading-none">Presupuesto</h1>
-                <p className="text-muted-foreground font-medium flex items-center gap-2">
-                  <BadgePercent className="h-4 w-4 text-[#abaafd]" /> Configuración comercial y tributaria
+                <h1 className="text-2xl sm:text-4xl font-black tracking-tighter text-foreground leading-none">Presupuesto</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground font-medium flex items-center gap-2">
+                  <BadgePercent className="h-3 w-3 sm:h-4 sm:w-4 text-[#abaafd]" /> Configuración comercial
                 </p>
               </div>
-              <Button variant="outline" onClick={onPreview} className="gap-2 rounded-xl border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 px-6 font-bold">
-                <Eye className="h-4 w-4" /> Previsualizar
+              <Button variant="outline" size="sm" onClick={onPreview} className="gap-2 rounded-xl border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 px-4 sm:px-6 font-bold h-9 sm:h-11">
+                <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Previsualizar</span>
               </Button>
             </div>
 
@@ -181,7 +181,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                   </Dialog>
                 </div>
                 <Select value={selectedCliente} onValueChange={(val) => setSelectedCliente(val || "")}>
-                  <SelectTrigger className="bg-muted/30 border-none h-16 text-xl font-bold px-8 rounded-2xl shadow-inner transition-all hover:bg-muted/40">
+                  <SelectTrigger className="bg-muted/30 border-none h-12 sm:h-16 text-sm sm:text-xl font-bold px-4 sm:px-8 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40">
                     <SelectValue>{currentClienteName || "Selecciona un cliente..."}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -196,69 +196,69 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                   placeholder="Ej: Desarrollo de Plataforma E-commerce"
                   value={proyecto}
                   onChange={(e) => setProyecto(e.target.value)}
-                  className="bg-muted/30 border-none h-16 text-xl font-bold px-8 rounded-2xl shadow-inner transition-all hover:bg-muted/40"
+                  className="bg-muted/30 border-none h-12 sm:h-16 text-sm sm:text-xl font-bold px-4 sm:px-8 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40"
                 />
               </div>
             </div>
           </div>
 
           {/* Tabla de Items */}
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black tracking-tight flex items-center gap-4 text-foreground">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-sm">01</span>
-                Servicios y Conceptos
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 sm:gap-4 text-foreground">
+                <span className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-xs sm:text-sm">01</span>
+                Servicios
               </h2>
-              <Button onClick={() => addItem()} size="sm" className="rounded-xl gap-2 px-6 shadow-xl shadow-[#abaafd]/10 h-10 bg-[#abaafd] text-[#2e3c7e] font-bold hover:scale-105 transition-all">
-                <Plus className="h-4 w-4" /> Añadir Item
+              <Button onClick={() => addItem()} size="sm" className="rounded-xl gap-2 px-4 sm:px-6 shadow-xl shadow-[#abaafd]/10 h-9 sm:h-10 bg-[#abaafd] text-[#2e3c7e] font-bold hover:scale-105 transition-all text-xs">
+                <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Añadir Item</span><span className="sm:hidden">Añadir</span>
               </Button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {items.map((item, index) => (
                 <Card key={index} className="border-none shadow-md bg-card/50 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
-                  <CardContent className="p-8">
-                    <div className="grid gap-8">
+                  <CardContent className="p-5 sm:p-8">
+                    <div className="grid gap-4 sm:gap-8">
                       <div className="w-full">
-                        <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block">Descripción Detallada</Label>
+                        <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block">Descripción Detallada</Label>
                         <Textarea 
                           value={item.descripcion}
                           onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
                           placeholder="Describe el servicio..."
-                          className="bg-transparent border-none p-0 focus-visible:ring-0 min-h-[60px] text-lg font-bold resize-none leading-relaxed text-foreground w-full"
+                          className="bg-transparent border-none p-0 focus-visible:ring-0 min-h-[40px] sm:min-h-[60px] text-sm sm:text-lg font-bold resize-none leading-relaxed text-foreground w-full"
                         />
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-t border-muted/20 pt-6">
+                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 border-t border-muted/20 pt-4 sm:pt-6">
                         <div className="flex gap-4 sm:gap-8">
                           <div className="flex-1 sm:w-40">
-                            <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block">Precio Unitario</Label>
+                            <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block">Precio Unitario</Label>
                             <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">$</span>
+                              <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs sm:text-sm">$</span>
                               <Input 
                                 type="number"
                                 value={item.precio}
                                 onChange={(e) => updateItem(index, 'precio', parseFloat(e.target.value))}
-                                className="bg-muted/20 border-none h-12 font-black text-lg pl-8 rounded-xl w-full"
+                                className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg pl-6 sm:pl-8 rounded-xl w-full"
                               />
                             </div>
                           </div>
-                          <div className="w-20 sm:w-24">
-                            <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block text-center">Cant.</Label>
+                          <div className="w-16 sm:w-24">
+                            <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block text-center">Cant.</Label>
                             <Input 
                               type="number"
                               value={item.cantidad}
                               onChange={(e) => updateItem(index, 'cantidad', parseInt(e.target.value))}
-                              className="bg-muted/20 border-none h-12 font-black text-lg text-center rounded-xl w-full"
+                              className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg text-center rounded-xl w-full"
                             />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-6 pt-4 sm:pt-0 border-t sm:border-none border-muted/10">
+                        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 pt-2 sm:pt-0 border-t sm:border-none border-muted/10">
                           <div className="text-left sm:text-right">
-                            <Label className="text-[10px] font-black uppercase text-[#abaafd]/60 mb-2 block">Total Item</Label>
-                            <span className="font-black text-[#abaafd] text-2xl">${item.total.toLocaleString()}</span>
+                            <Label className="text-[9px] font-black uppercase text-secondary/40 mb-1 block">Total Item</Label>
+                            <span className="font-black text-secondary text-lg sm:text-2xl">${item.total.toLocaleString()}</span>
                           </div>
-                          <Button variant="ghost" size="icon" onClick={() => removeItem(index)} className="h-12 w-12 text-destructive/40 hover:text-destructive hover:bg-destructive/5 rounded-xl">
-                            <Trash2 className="h-5 w-5" />
+                          <Button variant="ghost" size="icon" onClick={() => removeItem(index)} className="h-10 w-10 sm:h-12 sm:w-12 text-destructive/40 hover:text-destructive hover:bg-destructive/5 rounded-xl">
+                            <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                           </Button>
                         </div>
                       </div>
@@ -270,43 +270,44 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
           </div>
 
           {/* Servicios Opcionales */}
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black tracking-tight flex items-center gap-4 text-foreground">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-sm">02</span>
-                Costos Opcionales / Recurrentes
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 sm:gap-4 text-foreground">
+                <span className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-xs sm:text-sm">02</span>
+                Opcionales
               </h2>
-              <Button onClick={addOptionalItem} size="sm" variant="outline" className="rounded-xl gap-2 px-6 border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 h-10 font-bold">
-                <Plus className="h-4 w-4" /> Añadir Opcional
+              <Button onClick={addOptionalItem} size="sm" variant="outline" className="rounded-xl gap-2 px-4 sm:px-6 border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 h-9 sm:h-10 font-bold text-xs">
+                <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Añadir Opcional</span><span className="sm:hidden">Añadir</span>
               </Button>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-3 sm:gap-4">
               {optionalItems.map((item, index) => (
-                <div key={index} className="flex flex-col md:flex-row items-center gap-6 bg-muted/20 p-6 rounded-2xl group transition-all hover:bg-muted/30">
+                <div key={index} className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 bg-muted/20 p-4 sm:p-6 rounded-xl sm:rounded-2xl group transition-all hover:bg-muted/30">
                   <Input 
                     value={item.descripcion}
                     onChange={(e) => updateOptionalItem(index, 'descripcion', e.target.value)}
-                    placeholder="Mantenimiento, Hosting, etc..."
-                    className="flex-1 bg-transparent border-none font-bold text-xl text-foreground placeholder:text-muted-foreground/30"
+                    placeholder="Mantenimiento, Hosting..."
+                    className="flex-1 bg-transparent border-none font-bold text-base sm:text-xl text-foreground placeholder:text-muted-foreground/30 h-8 sm:h-auto"
                   />
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">$</span>
+                  <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-none border-muted/10 pt-3 sm:pt-0">
+                    <div className="relative flex-1 sm:flex-none">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">$</span>
                       <Input 
                         type="number"
                         value={item.precio}
                         onChange={(e) => updateOptionalItem(index, 'precio', parseFloat(e.target.value))}
-                        className="w-36 bg-muted/40 border-none h-12 font-black text-center pl-8 rounded-xl"
+                        className="w-full sm:w-32 bg-muted/40 border-none h-10 sm:h-12 font-black text-center pl-6 rounded-xl text-sm"
                       />
                     </div>
                     <Select value={item.frecuencia} onValueChange={(val) => updateOptionalItem(index, 'frecuencia', val)}>
-                      <SelectTrigger className="w-36 bg-muted/40 border-none h-12 font-bold rounded-xl">
+                      <SelectTrigger className="w-28 sm:w-36 bg-muted/40 border-none h-10 sm:h-12 font-bold rounded-xl text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Mensual">Mensual</SelectItem>
                         <SelectItem value="Anual">Anual</SelectItem>
+                        <SelectItem value="Pago Único">Pago Único</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button variant="ghost" size="icon" onClick={() => removeOptionalItem(index)} className="h-10 w-10 text-muted-foreground/20 hover:text-destructive">
@@ -328,11 +329,11 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
               {Object.entries(params).map(([key, value]) => (
                 <div key={key} className="flex gap-6 items-center bg-card p-6 rounded-2xl shadow-sm border border-muted/10">
                   <div className="flex-1">
-                    <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block">{key}</Label>
+                    <Label className="text-[10px] font-black uppercase text-secondary/50 mb-2 block">{key}</Label>
                     <Input 
                       value={value}
                       onChange={(e) => updateParam(key, key, e.target.value)}
-                      className="bg-transparent border-none h-10 p-0 text-lg font-black text-primary focus-visible:ring-0"
+                      className="bg-transparent border-none h-10 p-0 text-lg font-black text-secondary focus-visible:ring-0"
                     />
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => removeParam(key)} className="h-10 w-10 text-muted-foreground/20 hover:text-destructive">
@@ -346,28 +347,28 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
       </div>
 
       {/* FOOTER FIJO - CON ALTURA DEFINIDA Y SHRANK ZERO */}
-      <div className="shrink-0 h-auto bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-6 sm:px-12 py-6 sm:py-8 z-20">
-        <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-8">
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-6 sm:gap-12 flex-1 w-full">
+      <div className="shrink-0 h-auto bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-4 sm:px-12 py-4 sm:py-8 z-20">
+        <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-8">
+          <div className="flex items-center justify-between sm:justify-start gap-4 sm:gap-12 flex-1 w-full">
             <div className="flex flex-col min-w-fit">
-              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">Neto</span>
-              <span className="text-lg sm:text-xl font-bold">${totales.neto.toLocaleString()}</span>
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">Neto</span>
+              <span className="text-sm sm:text-xl font-bold">${totales.neto.toLocaleString()}</span>
             </div>
             <div className="flex flex-col min-w-fit">
-              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">IVA (19%)</span>
-              <span className="text-lg sm:text-xl font-bold">${totales.iva.toLocaleString()}</span>
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">IVA (19%)</span>
+              <span className="text-sm sm:text-xl font-bold">${totales.iva.toLocaleString()}</span>
             </div>
-            <div className="flex flex-col border-l border-white/10 pl-6 sm:pl-12 min-w-[150px]">
-              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#abaafd] mb-1">Total Proyecto</span>
-              <span className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tighter text-[#abaafd] whitespace-nowrap">${totales.total.toLocaleString()}</span>
+            <div className="flex flex-col border-l border-white/10 pl-4 sm:pl-12 min-w-[120px] sm:min-w-[150px]">
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-[#abaafd] mb-0.5">Total Proyecto</span>
+              <span className="text-xl sm:text-3xl md:text-4xl font-black tracking-tighter text-[#abaafd] whitespace-nowrap">${totales.total.toLocaleString()}</span>
             </div>
           </div>
           <Button 
             onClick={onSave} 
             disabled={isSaving} 
-            className="w-full sm:w-auto shrink-0 gap-4 rounded-2xl px-12 py-6 text-lg sm:text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
+            className="w-full sm:w-auto shrink-0 gap-3 sm:gap-4 rounded-xl sm:rounded-2xl h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
           >
-            <Save className="h-5 w-5" /> 
+            <Save className="h-4 w-4 sm:h-5 sm:w-5" /> 
             <span>{isSaving ? "Guardando..." : "Finalizar"}</span>
           </Button>
         </div>
