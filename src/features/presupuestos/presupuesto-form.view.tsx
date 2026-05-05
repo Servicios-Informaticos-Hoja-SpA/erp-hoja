@@ -82,7 +82,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
   isSaving,
   totales
 }) => {
-  const [newClient, setNewClient] = useState({ nombre: "", email: "", telefono: "", social: "" });
+  const [newClient, setNewClient] = useState({ nombre: "", rut: "", email: "", telefono: "", contacto: "" });
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
 
@@ -91,7 +91,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
     setIsCreatingClient(true);
     try {
       await onAddClient(newClient);
-      setNewClient({ nombre: "", email: "", telefono: "", social: "" });
+      setNewClient({ nombre: "", rut: "", email: "", telefono: "", contacto: "" });
       setIsClientDialogOpen(false);
     } finally {
       setIsCreatingClient(false);
@@ -135,9 +135,28 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                     <DialogContent className="border-none shadow-2xl">
                       <DialogHeader><DialogTitle className="font-black text-[#2e3c7e]">Registrar Cliente</DialogTitle></DialogHeader>
                       <div className="grid gap-4 py-4">
-                        <Input placeholder="Nombre o Empresa" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none" />
-                        <Input placeholder="Email" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} className="bg-muted/50 border-none" />
-                        <Input placeholder="Teléfono" value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none" />
+                        <div className="grid gap-2">
+                          <Label className="text-[10px] font-black uppercase text-primary/40">Nombre o Empresa</Label>
+                          <Input placeholder="Ej: Juan Perez" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className="text-[10px] font-black uppercase text-primary/40">RUT</Label>
+                          <Input placeholder="12.345.678-9" value={newClient.rut} onChange={e => setNewClient({...newClient, rut: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label className="text-[10px] font-black uppercase text-primary/40">Email</Label>
+                            <Input placeholder="email@ejemplo.com" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className="text-[10px] font-black uppercase text-primary/40">Teléfono</Label>
+                            <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className="text-[10px] font-black uppercase text-primary/40">Persona de Contacto</Label>
+                          <Input placeholder="Ej: Gerente Comercial" value={newClient.contacto} onChange={e => setNewClient({...newClient, contacto: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                        </div>
                       </div>
                       <Button onClick={handleCreateClient} disabled={isCreatingClient} className="w-full rounded-full bg-[#abaafd] text-[#2e3c7e] font-black hover:scale-105 transition-all">Guardar</Button>
                     </DialogContent>
