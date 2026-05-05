@@ -140,9 +140,9 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                   <Label className="text-[10px] font-black uppercase tracking-widest text-[#abaafd]">Información del Cliente</Label>
                   <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="link" className="h-auto p-0 text-xs text-[#abaafd] font-bold">
+                      <span className="h-auto p-0 text-xs text-[#abaafd] font-bold cursor-pointer hover:underline flex items-center">
                         <Plus className="h-3 w-3 mr-1" /> Nuevo Cliente
-                      </Button>
+                      </span>
                     </DialogTrigger>
                     <DialogContent className="!w-[95vw] sm:!max-w-[500px] border-none shadow-2xl rounded-3xl p-6 sm:p-8">
                       <DialogHeader>

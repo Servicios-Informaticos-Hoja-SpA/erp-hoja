@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -36,7 +37,9 @@ export default function RootLayout({
         >
           <AuthProvider>
             <TooltipProvider>
-              {children}
+              <ProtectedRoute>
+                {children}
+              </ProtectedRoute>
               <Toaster position="bottom-right" richColors closeButton />
             </TooltipProvider>
           </AuthProvider>
