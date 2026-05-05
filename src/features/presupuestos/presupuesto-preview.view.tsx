@@ -12,10 +12,13 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
   if (!data) return null;
 
   const formatDate = (date: any) => {
-    if (!date) return "---";
-    if (typeof date === 'string') return new Date(date).toLocaleDateString();
-    if (date.seconds) return new Date(date.seconds * 1000).toLocaleDateString();
-    return new Date(date).toLocaleDateString();
+    if (!date) return "";
+    try {
+      const d = typeof date === 'string' ? new Date(date) : (date.seconds ? new Date(date.seconds * 1000) : new Date(date));
+      return d.toLocaleDateString('es-CL');
+    } catch (e) {
+      return "";
+    }
   };
 
   const calculatedNeto = data.items?.reduce((acc, curr) => acc + curr.total, 0) || 0;
@@ -41,7 +44,7 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
             <h1 className="text-4xl font-black tracking-tighter text-slate-900 mb-1" style={{ color: '#0f172a' }}>PRESUPUESTO</h1>
             <div className="font-bold text-xl mb-4" style={{ color: '#abaafd' }}>N° {data.numero || "XXXX"}</div>
             <div className="space-y-1 text-xs text-slate-500" style={{ color: '#64748b' }}>
-              <p><span className="font-bold text-slate-700" style={{ color: '#334155' }}>Fecha:</span> {formatDate(data.fecha || new Date())}</p>
+              <p><span className="font-bold text-slate-700" style={{ color: '#334155' }}>Fecha:</span> {data.fecha ? formatDate(data.fecha) : ""}</p>
               <p><span className="font-bold text-slate-700" style={{ color: '#334155' }}>Válido por:</span> 15 días</p>
             </div>
           </div>
