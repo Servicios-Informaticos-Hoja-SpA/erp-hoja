@@ -257,8 +257,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
               <Save className="h-4 w-4" /> Guardar y Descargar
             </Button>
           </DialogHeader>
-          <ScrollArea className="max-h-[85vh]">
-            <div className="p-4 md:p-8">
+          <ScrollArea className="h-[75vh]">
+            <div className="flex justify-center py-4">
               <PresupuestoPreview data={currentData} config={config} />
             </div>
           </ScrollArea>
