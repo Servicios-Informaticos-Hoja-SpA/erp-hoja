@@ -105,7 +105,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
       
       {/* AREA DE CONTENIDO CON SCROLL NATIVO - MAS FIABLE */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted">
-        <div className="mx-auto w-full max-w-5xl space-y-12 px-8 py-12">
+        <div className="mx-auto w-full max-w-5xl space-y-8 sm:space-y-12 px-6 sm:px-12 py-8 sm:py-16">
           
           {/* Header Seccionado */}
           <div className="flex flex-col gap-10">

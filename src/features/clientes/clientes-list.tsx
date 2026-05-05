@@ -98,7 +98,7 @@ export const ClientesList = () => {
       }}>
         <SheetContent 
           side="right" 
-          className="w-full sm:!w-[70vw] sm:!max-w-[1100px] p-0 border-none shadow-2xl overflow-hidden flex flex-col"
+          className="!w-screen sm:!w-[70vw] sm:!max-w-[1100px] p-0 border-none shadow-2xl overflow-hidden flex flex-col [&>button]:hidden"
         >
           <SheetHeader className="p-6 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
             <div>

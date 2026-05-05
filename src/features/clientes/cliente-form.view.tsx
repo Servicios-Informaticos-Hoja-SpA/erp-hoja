@@ -37,7 +37,7 @@ export const ClienteFormView: React.FC<ClienteFormViewProps> = ({
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* AREA DE CONTENIDO CON SCROLL */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-4xl space-y-12 px-8 py-12">
+        <div className="mx-auto w-full max-w-4xl space-y-8 sm:space-y-12 px-6 sm:px-8 py-8 sm:py-12">
           
           <div className="flex flex-col gap-2">
             <h1 className="text-4xl font-black tracking-tighter text-foreground leading-none">{title}</h1>
