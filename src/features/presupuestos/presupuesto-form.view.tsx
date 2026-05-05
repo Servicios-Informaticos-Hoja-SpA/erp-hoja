@@ -139,24 +139,27 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-[#abaafd]">Información del Cliente</Label>
                   <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
-                    <DialogTrigger render={
+                    <DialogTrigger asChild>
                       <Button variant="link" className="h-auto p-0 text-xs text-[#abaafd] font-bold">
                         <Plus className="h-3 w-3 mr-1" /> Nuevo Cliente
                       </Button>
-                    } />
-                    <DialogContent className="border-none shadow-2xl">
-                      <DialogHeader><DialogTitle className="font-black text-[#2e3c7e]">Registrar Cliente</DialogTitle></DialogHeader>
-                      <div className="grid gap-4 py-4">
+                    </DialogTrigger>
+                    <DialogContent className="!w-[95vw] sm:!max-w-[500px] border-none shadow-2xl rounded-3xl p-6 sm:p-8">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-black text-[#2e3c7e] tracking-tighter">Registrar Cliente</DialogTitle>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Añadido rápido a base de datos</p>
+                      </DialogHeader>
+                      <div className="grid gap-6 py-4">
                         <div className="grid gap-2">
                           <Label className="text-[10px] font-black uppercase text-primary/40">Nombre o Empresa</Label>
-                          <Input placeholder="Ej: Juan Perez" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                          <Input placeholder="Ej: Juan Perez" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl text-base" />
                         </div>
                         <div className="grid gap-2">
                           <Label className="text-[10px] font-black uppercase text-primary/40">Teléfono</Label>
-                          <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl" />
+                          <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl text-base" />
                         </div>
                         
-                        <div className="pt-2 border-t border-muted/20 mt-2">
+                        <div className="pt-4 border-t border-muted/20 mt-2">
                           <Label className="text-[10px] font-black uppercase text-[#abaafd] mb-4 block">Redes Sociales / Web</Label>
                           <div className="grid gap-3">
                             <div className="relative">
@@ -171,7 +174,9 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                           </div>
                         </div>
                       </div>
-                      <Button onClick={handleCreateClient} disabled={isCreatingClient} className="w-full rounded-full bg-[#abaafd] text-[#2e3c7e] font-black hover:scale-105 transition-all">Guardar</Button>
+                      <Button onClick={handleCreateClient} disabled={isCreatingClient} className="w-full rounded-2xl h-14 bg-[#abaafd] text-[#2e3c7e] font-black text-lg hover:scale-105 transition-all shadow-xl shadow-[#abaafd]/20">
+                        {isCreatingClient ? "Guardando..." : "Guardar Cliente"}
+                      </Button>
                     </DialogContent>
                   </Dialog>
                 </div>
@@ -223,9 +228,9 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                           className="bg-transparent border-none p-0 focus-visible:ring-0 min-h-[60px] text-lg font-bold resize-none leading-relaxed text-foreground w-full"
                         />
                       </div>
-                      <div className="flex flex-wrap items-end justify-between gap-6 border-t border-muted/20 pt-6">
-                        <div className="flex gap-8">
-                          <div className="w-40">
+                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-t border-muted/20 pt-6">
+                        <div className="flex gap-4 sm:gap-8">
+                          <div className="flex-1 sm:w-40">
                             <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block">Precio Unitario</Label>
                             <div className="relative">
                               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">$</span>
@@ -233,22 +238,22 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                                 type="number"
                                 value={item.precio}
                                 onChange={(e) => updateItem(index, 'precio', parseFloat(e.target.value))}
-                                className="bg-muted/20 border-none h-12 font-black text-lg pl-8 rounded-xl"
+                                className="bg-muted/20 border-none h-12 font-black text-lg pl-8 rounded-xl w-full"
                               />
                             </div>
                           </div>
-                          <div className="w-24">
-                            <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block">Cantidad</Label>
+                          <div className="w-20 sm:w-24">
+                            <Label className="text-[10px] font-black uppercase text-primary/40 mb-2 block text-center">Cant.</Label>
                             <Input 
                               type="number"
                               value={item.cantidad}
                               onChange={(e) => updateItem(index, 'cantidad', parseInt(e.target.value))}
-                              className="bg-muted/20 border-none h-12 font-black text-lg text-center rounded-xl"
+                              className="bg-muted/20 border-none h-12 font-black text-lg text-center rounded-xl w-full"
                             />
                           </div>
                         </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
+                        <div className="flex items-center justify-between sm:justify-end gap-6 pt-4 sm:pt-0 border-t sm:border-none border-muted/10">
+                          <div className="text-left sm:text-right">
                             <Label className="text-[10px] font-black uppercase text-[#abaafd]/60 mb-2 block">Total Item</Label>
                             <span className="font-black text-[#abaafd] text-2xl">${item.total.toLocaleString()}</span>
                           </div>
