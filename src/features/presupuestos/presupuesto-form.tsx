@@ -1,0 +1,258 @@
+"use client";
+
+import React, { useState, useEffect, useMemo } from "react";
+import { PresupuestoFormView } from "./presupuesto-form.view";
+import { PresupuestoPreview } from "./presupuesto-preview.view";
+import { 
+  Cliente, 
+  Servicio, 
+  PresupuestoItem, 
+  Presupuesto, 
+  ConfiguracionGlobal 
+} from "@/lib/types";
+import { 
+  getClientes, 
+  getCatalogo, 
+  getConfig, 
+  savePresupuesto, 
+  getNextPresupuestoNumber,
+  getPresupuestoById,
+  saveCliente 
+} from "@/lib/services";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+
+interface PresupuestoFormProps {
+  id?: string;
+  onSuccess?: () => void;
+}
+
+export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess }) => {
+  const router = useRouter();
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [catalogo, setCatalogo] = useState<Servicio[]>([]);
+  const [config, setConfig] = useState<ConfiguracionGlobal | null>(null);
+  
+  // Form State
+  const [selectedCliente, setSelectedCliente] = useState("");
+  const [proyecto, setProyecto] = useState("");
+  const [items, setItems] = useState<PresupuestoItem[]>([]);
+  const [optionalItems, setOptionalItems] = useState<PresupuestoItem[]>([]);
+  const [params, setParams] = useState<Record<string, string>>({
+    "Forma Pago": "70% Anticipo y 30% Contra entrega",
+    "Plazo Entrega": "30 días"
+  });
+  
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [nextNumber, setNextNumber] = useState("XXXX");
+  const [currentVersion, setCurrentVersion] = useState(1);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [cls, cat, conf] = await Promise.all([
+          getClientes(),
+          getCatalogo(),
+          getConfig()
+        ]);
+        setClientes(cls);
+        setCatalogo(cat);
+        setConfig(conf);
+
+        if (id) {
+          const pres = await getPresupuestoById(id);
+          setSelectedCliente(pres.cliente_id);
+          setProyecto(pres.descripcion_proyecto);
+          setItems(pres.items);
+          setOptionalItems(pres.servicios_opcionales || []);
+          setParams(pres.parametros_personalizados);
+          setNextNumber(pres.numero);
+          setCurrentVersion(pres.version || 1);
+        } else {
+          const num = await getNextPresupuestoNumber();
+          setNextNumber(num);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error al cargar datos del formulario");
+      }
+    };
+    loadData();
+  }, [id]);
+
+  const neto = useMemo(() => {
+    return items.reduce((acc, curr) => acc + curr.total, 0);
+  }, [items]);
+
+  const iva = useMemo(() => Math.round(neto * 0.19), [neto]);
+  const totalFinal = useMemo(() => neto + iva, [neto, iva]);
+
+  const addItem = () => {
+    setItems([...items, { descripcion: "", precio: 0, cantidad: 1, total: 0 }]);
+  };
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const updateItem = (index: number, field: keyof PresupuestoItem, value: any) => {
+    const newItems = [...items];
+    const item = { ...newItems[index], [field]: value };
+    item.total = item.precio * item.cantidad;
+    newItems[index] = item;
+    setItems(newItems);
+  };
+
+  const addOptionalItem = () => {
+    setOptionalItems([...optionalItems, { descripcion: "", precio: 0, cantidad: 1, total: 0, frecuencia: "Mensual" }]);
+  };
+
+  const removeOptionalItem = (index: number) => {
+    setOptionalItems(optionalItems.filter((_, i) => i !== index));
+  };
+
+  const updateOptionalItem = (index: number, field: keyof PresupuestoItem, value: any) => {
+    const newItems = [...optionalItems];
+    const item = { ...newItems[index], [field]: value };
+    item.total = item.precio * item.cantidad;
+    newItems[index] = item;
+    setOptionalItems(newItems);
+  };
+
+  const updateParam = (oldKey: string, newKey: string, value: string) => {
+    const newParams = { ...params };
+    if (oldKey !== newKey) {
+      delete newParams[oldKey];
+    }
+    newParams[newKey] = value;
+    setParams(newParams);
+  };
+
+  const addParam = () => {
+    const key = `Parámetro ${Object.keys(params).length + 1}`;
+    setParams({ ...params, [key]: "" });
+  };
+
+  const removeParam = (key: string) => {
+    const newParams = { ...params };
+    delete newParams[key];
+    setParams(newParams);
+  };
+
+  const handleSave = async () => {
+    if (!selectedCliente || items.length === 0) {
+      toast.warning("Selecciona un cliente y añade al menos un ítem.");
+      return;
+    }
+
+    setIsSaving(true);
+    const cliente = clientes.find(c => c.id === selectedCliente);
+
+    const presupuesto: any = {
+      id,
+      numero: nextNumber,
+      cliente_id: selectedCliente,
+      cliente_nombre: cliente?.nombre || "",
+      descripcion_proyecto: proyecto,
+      items,
+      servicios_opcionales: optionalItems,
+      parametros_personalizados: params,
+      forma_pago: params["Forma Pago"] || "",
+      plazo_entrega: params["Plazo Entrega"] || "",
+      totales: { neto, iva, total: totalFinal }
+    };
+
+    try {
+      await savePresupuesto(presupuesto);
+      toast.success(id ? "Presupuesto actualizado (Nueva versión)" : "Presupuesto guardado.");
+      
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push("/presupuestos");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al guardar.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddClient = async (newCliente: Partial<Cliente>) => {
+    try {
+      const res = await saveCliente(newCliente);
+      const cls = await getClientes();
+      setClientes(cls);
+      if (res && res.id) {
+        setSelectedCliente(res.id);
+      }
+      toast.success("Cliente añadido.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al añadir cliente.");
+    }
+  };
+
+  const currentData: Partial<Presupuesto> = {
+    numero: nextNumber,
+    cliente_nombre: clientes.find(c => c.id === selectedCliente)?.nombre || "Nombre del Cliente",
+    descripcion_proyecto: proyecto,
+    items,
+    servicios_opcionales: optionalItems,
+    parametros_personalizados: params,
+    totales: { neto, iva, total: totalFinal },
+    version: id ? currentVersion + 1 : 1
+  };
+
+  return (
+    <div className="h-full">
+      <PresupuestoFormView
+        clientes={clientes}
+        catalogo={catalogo}
+        selectedCliente={selectedCliente}
+        setSelectedCliente={setSelectedCliente}
+        proyecto={proyecto}
+        setProyecto={setProyecto}
+        items={items}
+        addItem={addItem}
+        removeItem={removeItem}
+        updateItem={updateItem}
+        optionalItems={optionalItems}
+        addOptionalItem={addOptionalItem}
+        removeOptionalItem={removeOptionalItem}
+        updateOptionalItem={updateOptionalItem}
+        params={params}
+        addParam={addParam}
+        removeParam={removeParam}
+        updateParam={updateParam}
+        onPreview={() => setIsPreviewOpen(true)}
+        onSave={handleSave}
+        onAddClient={handleAddClient}
+        isSaving={isSaving}
+        totales={{ neto, iva, total: totalFinal }}
+      />
+
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
+          <DialogHeader className="p-4 bg-primary text-primary-foreground">
+            <DialogTitle className="font-black">Vista Previa del Presupuesto</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[85vh]">
+            <div className="p-4 md:p-8">
+              <PresupuestoPreview data={currentData} config={config} />
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
