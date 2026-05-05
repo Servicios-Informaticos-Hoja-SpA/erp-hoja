@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Cliente } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,7 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
   onLogout,
   loading
 }) => {
+  const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -90,15 +92,15 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-12 md:px-[10%] lg:px-[15%] xl:px-[15%]">
-      <div className="mb-12 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+      <div className="mb-16 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => window.history.back()} 
-            className="rounded-full bg-muted/50 text-primary shrink-0"
+            onClick={() => router.push('/')} 
+            className="rounded-full bg-muted/50 text-primary shrink-0 h-12 w-12"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-6 w-6" />
           </Button>
           <div>
             <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground leading-none">CRM Clientes</h1>

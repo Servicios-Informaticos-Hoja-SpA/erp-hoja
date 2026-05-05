@@ -23,6 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../../components/ui/tooltip";
+import { useRouter } from "next/navigation";
 
 interface PresupuestoListViewProps {
   presupuestos: Presupuesto[];
@@ -47,6 +48,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
   onLogout,
   loading
 }) => {
+  const router = useRouter();
   const filtered = presupuestos.filter(p => 
     p.cliente_nombre.toLowerCase().includes(search.toLowerCase()) ||
     p.numero.includes(search)
@@ -58,15 +60,15 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
   return (
     <TooltipProvider>
       <div className="flex min-h-screen flex-col bg-background px-6 py-12 md:px-[10%] lg:px-[15%] xl:px-[15%]">
-        <div className="mb-12 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="mb-16 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => window.history.back()} 
-              className="rounded-full bg-muted/50 shrink-0"
+              onClick={() => router.push('/')} 
+              className="rounded-full bg-muted/50 shrink-0 h-12 w-12"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-6 w-6" />
             </Button>
             <div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground">Presupuestos</h1>
