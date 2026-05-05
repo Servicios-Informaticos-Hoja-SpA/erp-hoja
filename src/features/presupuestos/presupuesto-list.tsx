@@ -214,13 +214,13 @@ export const PresupuestoList = () => {
               <Download className="h-4 w-4" /> <span className="hidden xs:inline">Descargar PDF</span>
             </Button>
           </DialogHeader>
-          <ScrollArea className="h-[75vh]">
-            <div className="flex justify-center py-4">
+          <div className="h-[75vh] overflow-auto">
+            <div className="flex justify-center py-4 min-w-max">
               {downloadingPresupuesto && (
                 <PresupuestoPreview data={downloadingPresupuesto} config={globalConfig} />
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </>
