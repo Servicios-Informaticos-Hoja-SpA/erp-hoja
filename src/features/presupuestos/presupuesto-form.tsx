@@ -28,7 +28,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Save } from "lucide-react";
+import { Plus, Save, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface PresupuestoFormProps {
@@ -246,15 +246,25 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
           <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
-            <div>
-              <DialogTitle className="text-2xl font-black tracking-tight uppercase leading-none">Vista Previa</DialogTitle>
-              <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA Budget System</p>
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setIsPreviewOpen(false)}
+                className="rounded-full hover:bg-[#2e3c7e]/10 text-[#2e3c7e]"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <div>
+                <DialogTitle className="text-2xl font-black tracking-tight uppercase leading-none">Vista Previa</DialogTitle>
+                <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA Budget System</p>
+              </div>
             </div>
             <Button 
               onClick={handleSave}
               className="rounded-full bg-[#2e3c7e] text-white hover:scale-105 transition-all gap-2"
             >
-              <Save className="h-4 w-4" /> Guardar y Descargar
+              <Save className="h-4 w-4" /> <span className="hidden xs:inline">Guardar y Descargar</span>
             </Button>
           </DialogHeader>
           <ScrollArea className="h-[75vh]">
