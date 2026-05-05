@@ -47,37 +47,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Header Premium */}
-      <header className="relative z-10 flex items-center justify-between px-8 py-8 md:px-16">
-        <div className="flex items-center gap-6">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl p-2">
+      <header className="relative z-10 flex items-center justify-between px-6 py-6 md:px-16">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl p-2">
             <img src="/logo.png" alt="Logo Hoja SpA" className="h-full w-full object-contain drop-shadow-lg" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-foreground leading-none">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground leading-none">
               {companyName}
             </h1>
-            <p className="text-[9px] uppercase font-bold text-primary tracking-[0.3em] mt-1.5 ml-0.5">Control de Operaciones</p>
+            <p className="text-[8px] sm:text-[9px] uppercase font-bold text-primary tracking-[0.2em] sm:tracking-[0.3em] mt-1 sm:mt-1.5 ml-0.5">Control de Operaciones</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl border border-white/10 p-2 rounded-2xl">
+        <div className="flex items-center gap-2 sm:gap-4 bg-white/5 backdrop-blur-xl border border-white/10 p-1.5 sm:p-2 rounded-2xl">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="rounded-xl hover:bg-white/10 text-primary"
+            className="rounded-xl h-9 w-9 sm:h-10 sm:w-10 hover:bg-white/10 text-primary"
           >
-            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <Sun className="h-4 w-4 sm:h-5 sm:w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-4 w-4 sm:h-5 sm:w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
-          <div className="w-[1px] h-6 bg-white/10 mx-1" />
+          <div className="w-[1px] h-6 bg-white/10 mx-0.5 sm:mx-1" />
           <Button
             variant="ghost"
             size="icon"
             onClick={onLogout}
-            className="rounded-xl text-destructive hover:bg-destructive/10"
+            className="rounded-xl h-9 w-9 sm:h-10 sm:w-10 text-destructive hover:bg-destructive/10"
           >
-            <LogOut className="h-5 w-5" />
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
         </div>
       </header>

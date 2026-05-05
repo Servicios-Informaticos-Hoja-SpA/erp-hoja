@@ -185,11 +185,11 @@ export const ClienteFormView: React.FC<ClienteFormViewProps> = ({
       </div>
 
       {/* FOOTER FIJO */}
-      <div className="shrink-0 bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-12 py-8 z-20">
-        <div className="mx-auto max-w-4xl flex items-center justify-between">
-          <div className="flex flex-col">
+      <div className="shrink-0 bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-6 sm:px-12 py-6 sm:py-8 z-20">
+        <div className="mx-auto max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col text-center sm:text-left">
             <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Estado del Registro</span>
-            <span className="text-xl font-bold flex items-center gap-2">
+            <span className="text-lg sm:text-xl font-bold flex items-center justify-center sm:justify-start gap-2">
               <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
               Listo para procesar
             </span>
@@ -197,9 +197,9 @@ export const ClienteFormView: React.FC<ClienteFormViewProps> = ({
           <Button 
             onClick={onSave} 
             disabled={isSaving} 
-            className="shrink-0 gap-4 rounded-2xl px-16 py-8 text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
+            className="w-full sm:w-auto shrink-0 gap-4 rounded-2xl px-12 sm:px-16 py-6 sm:py-8 text-lg sm:text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
           >
-            <Save className="h-6 w-6" /> 
+            <Save className="h-5 w-5 sm:h-6 sm:w-6" /> 
             <span>{isSaving ? "Guardando..." : "Guardar Cliente"}</span>
           </Button>
         </div>

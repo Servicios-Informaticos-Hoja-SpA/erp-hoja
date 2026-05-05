@@ -90,31 +90,32 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-12 md:px-[10%] lg:px-[15%] xl:px-[15%]">
-      <div className="mb-12 flex items-center justify-between">
+      <div className="mb-12 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => window.history.back()} 
-            className="rounded-full bg-muted/50 text-primary"
+            className="rounded-full bg-muted/50 text-primary shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-4xl font-black tracking-tighter text-foreground leading-none">CRM Clientes</h1>
-            <p className="text-sm text-muted-foreground font-medium">Gestión de identidad y contactos comerciales</p>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground leading-none">CRM Clientes</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground font-medium">Gestión de identidad y contactos comerciales</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Button 
             variant="ghost" 
+            size="sm"
             onClick={onLogout}
-            className="gap-2 text-muted-foreground hover:text-destructive transition-colors font-bold"
+            className="gap-2 text-muted-foreground hover:text-destructive transition-colors font-bold px-2 sm:px-4"
           >
-            <LogOut className="h-4 w-4" /> Cerrar Sesión
+            <LogOut className="h-4 w-4" /> <span className="hidden xs:inline">Cerrar Sesión</span>
           </Button>
-          <Button onClick={onAdd} className="gap-2 rounded-2xl px-8 py-6 text-lg font-black shadow-xl shadow-[#abaafd]/20 bg-[#abaafd] text-[#2e3c7e] transition-all hover:scale-105">
-            <Plus className="h-5 w-5" /> Nuevo Cliente
+          <Button onClick={onAdd} className="gap-2 rounded-2xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-lg font-black shadow-xl shadow-[#abaafd]/20 bg-[#abaafd] text-[#2e3c7e] transition-all hover:scale-105">
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" /> <span className="whitespace-nowrap">Nuevo <span className="hidden xs:inline">Cliente</span></span>
           </Button>
         </div>
       </div>
@@ -123,7 +124,7 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
         <Search className="absolute left-6 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
         <Input 
           placeholder="Buscar por nombre, email o RUT..." 
-          className="pl-14 py-8 text-lg rounded-3xl bg-card border-none focus-visible:ring-primary shadow-xl"
+          className="pl-14 py-6 sm:py-8 text-base sm:text-lg rounded-3xl bg-card border-none focus-visible:ring-primary shadow-xl"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -136,21 +137,21 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
           <div key={c.id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 group">
             {/* Tarjeta Principal de Información */}
             <Card className="lg:col-span-8 overflow-hidden border-none shadow-lg bg-card/50 backdrop-blur-sm transition-all hover:shadow-2xl">
-              <CardContent className="p-8">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-6">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#abaafd] text-[#2e3c7e] font-black text-2xl shadow-xl shadow-[#abaafd]/20">
+              <CardContent className="p-6 sm:p-8">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+                  <div className="flex items-start gap-4 sm:gap-6">
+                    <div className="flex h-12 w-12 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-[#abaafd] text-[#2e3c7e] font-black text-xl sm:text-2xl shadow-xl shadow-[#abaafd]/20">
                       {c.nombre.charAt(0).toUpperCase()}
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-w-0 flex-1">
                       <div>
-                        <h3 className="text-2xl font-black text-foreground leading-tight">{c.nombre}</h3>
-                        <p className="text-sm font-bold text-[#abaafd] uppercase tracking-widest">{c.rut || "Sin RUT"}</p>
+                        <h3 className="text-xl sm:text-2xl font-black text-foreground leading-tight truncate">{c.nombre}</h3>
+                        <p className="text-[10px] sm:text-sm font-bold text-[#abaafd] uppercase tracking-widest">{c.rut || "Sin RUT"}</p>
                       </div>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground font-medium">
+                      <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground font-medium">
                         {c.email && (
-                          <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 rounded-full border border-white/5">
-                            <Mail className="h-3 w-3" /> {c.email}
+                          <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 rounded-full border border-white/5 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] sm:max-w-none">
+                            <Mail className="h-3 w-3 shrink-0" /> {c.email}
                           </div>
                         )}
                         {c.telefono && (
@@ -158,15 +159,10 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
                             <Phone className="h-3 w-3" /> {c.telefono}
                           </div>
                         )}
-                        {c.contacto && (
-                          <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 rounded-full border border-white/5">
-                            <Info className="h-3 w-3" /> {c.contacto}
-                          </div>
-                        )}
                       </div>
 
                       {/* Iconos de Redes Sociales */}
-                      <div className="flex gap-3 pt-2">
+                      <div className="flex gap-2 sm:gap-3 pt-2">
                         {c.social_web && (
                           <a href={c.social_web} target="_blank" rel="noopener noreferrer" className="p-2 bg-secondary/10 rounded-xl text-secondary hover:bg-secondary hover:text-white transition-all">
                             <Globe className="h-4 w-4" />
@@ -185,12 +181,12 @@ export const ClientesListView: React.FC<ClientesListViewProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(c.id!)} className="rounded-xl h-12 w-12 hover:bg-primary/10 hover:text-primary">
-                      <Edit3 className="h-5 w-5" />
+                  <div className="flex sm:flex-col gap-2 justify-end sm:justify-start border-t sm:border-none pt-4 sm:pt-0 border-muted/20">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(c.id!)} className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 bg-muted/20 sm:bg-transparent hover:bg-primary/10 hover:text-primary transition-all">
+                      <Edit3 className="h-4 w-4 sm:h-5 sm:w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id!)} className="rounded-xl h-12 w-12 hover:bg-destructive/10 hover:text-destructive">
-                      <Trash2 className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id!)} className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 bg-muted/20 sm:bg-transparent hover:bg-destructive/10 hover:text-destructive transition-all">
+                      <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                     </Button>
                   </div>
                 </div>

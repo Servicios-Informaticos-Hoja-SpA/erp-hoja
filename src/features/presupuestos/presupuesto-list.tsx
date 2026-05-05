@@ -139,7 +139,7 @@ export const PresupuestoList = () => {
       }}>
         <SheetContent 
           side="right" 
-          className="!w-[70vw] !max-w-[1200px] p-0 border-none shadow-2xl overflow-hidden flex flex-col"
+          className="w-full sm:!w-[70vw] sm:!max-w-[1100px] p-0 border-none shadow-2xl overflow-hidden flex flex-col"
         >
           <SheetHeader className="p-6 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
             <div>

@@ -309,28 +309,28 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
       </div>
 
       {/* FOOTER FIJO - CON ALTURA DEFINIDA Y SHRANK ZERO */}
-      <div className="shrink-0 h-auto bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-12 py-8 z-20">
-        <div className="mx-auto max-w-5xl flex items-center justify-between gap-8">
-          <div className="flex items-center gap-12 flex-1 overflow-hidden">
+      <div className="shrink-0 h-auto bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-6 sm:px-12 py-6 sm:py-8 z-20">
+        <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-8">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-6 sm:gap-12 flex-1 w-full">
             <div className="flex flex-col min-w-fit">
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Neto</span>
-              <span className="text-xl font-bold">${totales.neto.toLocaleString()}</span>
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">Neto</span>
+              <span className="text-lg sm:text-xl font-bold">${totales.neto.toLocaleString()}</span>
             </div>
             <div className="flex flex-col min-w-fit">
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">IVA (19%)</span>
-              <span className="text-xl font-bold">${totales.iva.toLocaleString()}</span>
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">IVA (19%)</span>
+              <span className="text-lg sm:text-xl font-bold">${totales.iva.toLocaleString()}</span>
             </div>
-            <div className="flex flex-col border-l border-white/10 pl-12 flex-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#abaafd] mb-1">Total Proyecto</span>
-              <span className="text-3xl md:text-4xl font-black tracking-tighter text-[#abaafd] whitespace-nowrap">${totales.total.toLocaleString()}</span>
+            <div className="flex flex-col border-l border-white/10 pl-6 sm:pl-12 min-w-[150px]">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#abaafd] mb-1">Total Proyecto</span>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tighter text-[#abaafd] whitespace-nowrap">${totales.total.toLocaleString()}</span>
             </div>
           </div>
           <Button 
             onClick={onSave} 
             disabled={isSaving} 
-            className="shrink-0 gap-4 rounded-2xl px-12 py-7 text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
+            className="w-full sm:w-auto shrink-0 gap-4 rounded-2xl px-12 py-6 text-lg sm:text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
           >
-            <Save className="h-6 w-6" /> 
+            <Save className="h-5 w-5" /> 
             <span>{isSaving ? "Guardando..." : "Finalizar"}</span>
           </Button>
         </div>

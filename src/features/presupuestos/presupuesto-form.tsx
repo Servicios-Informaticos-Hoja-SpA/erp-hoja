@@ -243,8 +243,17 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
-          <DialogHeader className="p-4 bg-primary text-primary-foreground">
-            <DialogTitle className="font-black">Vista Previa del Presupuesto</DialogTitle>
+          <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
+            <div>
+              <DialogTitle className="text-2xl font-black tracking-tight uppercase leading-none">Vista Previa</DialogTitle>
+              <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA Budget System</p>
+            </div>
+            <Button 
+              onClick={handleSave}
+              className="rounded-full bg-[#2e3c7e] text-white hover:scale-105 transition-all gap-2"
+            >
+              <Save className="h-4 w-4" /> Guardar y Descargar
+            </Button>
           </DialogHeader>
           <ScrollArea className="max-h-[85vh]">
             <div className="p-4 md:p-8">
