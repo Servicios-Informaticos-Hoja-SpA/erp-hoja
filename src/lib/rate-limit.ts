@@ -4,7 +4,7 @@
 const rateLimitMap = new Map<string, { count: number; lastRequest: number }>();
 
 const WINDOW_MS = 60 * 1000; // 1 minuto
-const MAX_REQUESTS = 15; // Límite solicitado
+const MAX_REQUESTS = 50; // Aumentado a 50 según solicitud
 
 export function isRateLimited(ip: string): boolean {
   const now = Date.now();
