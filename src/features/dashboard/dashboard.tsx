@@ -32,10 +32,9 @@ export const DashboardFeature = () => {
 
   const handleLogout = async () => {
     try {
+      await fetch("/api/auth/login", { method: "DELETE" });
       await signOut(auth);
-      // Eliminar la cookie de sesión
-      document.cookie = "session_active=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-      router.push("/login");
+      window.location.href = "/login";
     } catch (err) {
       console.error("Error signing out", err);
     }

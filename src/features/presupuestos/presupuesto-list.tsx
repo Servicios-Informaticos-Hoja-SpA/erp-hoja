@@ -26,6 +26,8 @@ import { Download, Loader2, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export const PresupuestoList = () => {
   const { user, loading: authLoading } = useAuth();
@@ -109,8 +111,13 @@ export const PresupuestoList = () => {
   if (!user) return null;
 
   const handleLogout = async () => {
-    await fetch("/api/auth/login", { method: "DELETE" });
-    router.push("/login");
+    try {
+      await fetch("/api/auth/login", { method: "DELETE" });
+      await signOut(auth);
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Error signing out", err);
+    }
   };
 
   return (

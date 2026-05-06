@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { Loader2, X } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export const ClientesList = () => {
   const { user, loading: authLoading } = useAuth();
@@ -69,8 +71,13 @@ export const ClientesList = () => {
   if (!user) return null;
 
   const handleLogout = async () => {
-    await fetch("/api/auth/login", { method: "DELETE" });
-    router.push("/login");
+    try {
+      await fetch("/api/auth/login", { method: "DELETE" });
+      await signOut(auth);
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Error signing out", err);
+    }
   };
 
   return (
