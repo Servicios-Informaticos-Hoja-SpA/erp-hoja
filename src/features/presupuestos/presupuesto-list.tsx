@@ -112,7 +112,7 @@ export const PresupuestoList = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/login", { method: "DELETE" });
+      await fetch("/api/auth/logout", { method: "POST" });
       await signOut(auth);
       window.location.href = "/login";
     } catch (err) {

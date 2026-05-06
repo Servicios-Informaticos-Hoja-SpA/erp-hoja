@@ -29,8 +29,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Si el usuario NO tiene sesión y no está en el login, redirigir a login
-  // Nota: Permitimos acceso a /api/auth/login para poder iniciar sesión
-  if (!session && pathname !== '/login' && pathname !== '/api/auth/login') {
+  // Nota: Permitimos acceso a /api/auth/login y /api/auth/logout para gestión de sesión
+  if (!session && pathname !== '/login' && pathname !== '/api/auth/login' && pathname !== '/api/auth/logout') {
     if (pathname.startsWith('/api/')) {
       return withSecurityHeaders(NextResponse.json({ error: 'No autorizado' }, { status: 401 }));
     }
