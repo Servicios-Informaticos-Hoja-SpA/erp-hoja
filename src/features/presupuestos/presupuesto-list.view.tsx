@@ -84,7 +84,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
             >
               <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar Sesión</span>
             </Button>
-            <Button onClick={onNew} className="gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-8 h-10 sm:h-14 text-sm sm:text-lg font-black shadow-xl shadow-secondary/10 bg-secondary text-white hover:scale-105 transition-all">
+            <Button onClick={onNew} className="gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-8 h-10 sm:h-14 text-sm sm:text-lg font-black shadow-xl shadow-primary/20 bg-primary text-primary-foreground hover:scale-105 transition-all">
               <Plus className="h-4 w-4 sm:h-5 sm:w-5" /> <span>Nuevo</span>
             </Button>
           </div>
@@ -94,7 +94,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input 
             placeholder="Buscar por cliente o N°..." 
-            className="pl-12 h-12 rounded-xl sm:rounded-2xl bg-muted/30 border-none focus-visible:ring-secondary/20 shadow-inner text-sm sm:text-base"
+            className="pl-12 h-12 rounded-xl sm:rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/50 shadow-inner text-sm sm:text-base"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -109,15 +109,15 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                 <CardContent className="p-5 sm:p-6">
                   <div className="flex flex-col sm:flex-row justify-between gap-6">
                     {/* Lado Izquierdo: Info Principal */}
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/5 text-secondary group-hover:bg-secondary group-hover:text-white transition-all duration-300 shadow-sm">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
                         <FileText className="h-6 w-6" />
                       </div>
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-secondary/40 uppercase tracking-widest">N° {p.numero}</span>
+                          <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">N° {p.numero}</span>
                           {p.version && p.version > 1 && (
-                            <Badge className="text-[9px] uppercase h-4 px-1.5 bg-secondary text-white border-none rounded-md">v{p.version}</Badge>
+                            <Badge className="text-[9px] uppercase h-4 px-1.5 bg-primary text-primary-foreground border-none rounded-md">v{p.version}</Badge>
                           )}
                         </div>
                         <h3 className="text-lg font-black text-secondary leading-tight truncate">{p.cliente_nombre}</h3>
@@ -138,15 +138,15 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                     {/* Lado Derecho: Precio y Acciones */}
                     <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-4 sm:gap-3 border-t sm:border-none pt-4 sm:pt-0 border-muted/10">
                       <div className="flex flex-col sm:items-end">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-secondary/30 leading-none mb-1">Total Proyecto</span>
-                        <span className="text-2xl font-black text-secondary tracking-tighter leading-none">{formatCurrency(p.totales.total)}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-primary/60 leading-none mb-1">Total Proyecto</span>
+                        <span className="text-2xl font-black text-primary tracking-tighter leading-none">{formatCurrency(p.totales.total)}</span>
                       </div>
                       
                       <div className="flex items-center gap-2">
                         <Tooltip>
                           <TooltipTrigger
                             onClick={(e) => { e.stopPropagation(); onView(p); }}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-secondary hover:text-white transition-all shadow-sm cursor-pointer text-secondary"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-primary hover:text-primary-foreground transition-all shadow-sm cursor-pointer text-muted-foreground hover:shadow-primary/20"
                           >
                             <Eye className="h-4 w-4" />
                           </TooltipTrigger>
@@ -156,7 +156,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                         <Tooltip>
                           <TooltipTrigger
                             onClick={(e) => { e.stopPropagation(); onDownload(p); }}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-secondary hover:text-white transition-all shadow-sm cursor-pointer text-secondary"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-primary hover:text-primary-foreground transition-all shadow-sm cursor-pointer text-muted-foreground hover:shadow-primary/20"
                           >
                             <Download className="h-4 w-4" />
                           </TooltipTrigger>
@@ -166,7 +166,7 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                         <Tooltip>
                           <TooltipTrigger
                             onClick={(e) => { e.stopPropagation(); onEdit(p.id!); }}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-secondary hover:text-white transition-all shadow-sm cursor-pointer text-secondary"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-primary hover:text-primary-foreground transition-all shadow-sm cursor-pointer text-muted-foreground hover:shadow-primary/20"
                           >
                             <Edit3 className="h-4 w-4" />
                           </TooltipTrigger>

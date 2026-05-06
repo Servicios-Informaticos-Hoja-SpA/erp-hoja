@@ -73,7 +73,7 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 mb-6">
+        <div className="flex flex-col gap-6 mb-8">
           <div className="space-y-3">
             <h3 className="text-[9px] uppercase tracking-widest text-slate-400 font-bold border-b pb-1.5 mb-1" style={{ color: '#94a3b8', borderBottomColor: '#e2e8f0' }}>CLIENTE</h3>
             <div className="space-y-1">

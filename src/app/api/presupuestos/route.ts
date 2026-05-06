@@ -26,6 +26,7 @@ const presupuestoSchema = z.object({
   numero: z.string(),
   cliente_id: z.string(),
   cliente_nombre: z.string(),
+  nombre_proyecto: z.string().optional(),
   descripcion_proyecto: z.string().optional(),
   items: z.array(presupuestoItemSchema),
   servicios_opcionales: z.array(presupuestoItemSchema).optional(),
