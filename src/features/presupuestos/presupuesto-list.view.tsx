@@ -121,8 +121,8 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
                           )}
                         </div>
                         <h3 className="text-lg font-black text-secondary leading-tight truncate">{p.cliente_nombre}</h3>
-                        {p.descripcion_proyecto && (
-                          <p className="text-xs font-semibold text-muted-foreground/80 truncate">{p.descripcion_proyecto}</p>
+                        {(p.nombre_proyecto || p.descripcion_proyecto) && (
+                          <p className="text-xs font-semibold text-muted-foreground/80 truncate">{p.nombre_proyecto || p.descripcion_proyecto}</p>
                         )}
                         <div className="flex items-center gap-2 pt-1 text-[10px] font-bold text-muted-foreground/60">
                           <Calendar className="h-3 w-3" /> 

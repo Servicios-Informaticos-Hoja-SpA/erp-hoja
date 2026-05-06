@@ -47,6 +47,7 @@ export interface Presupuesto {
   fecha: Timestamp;
   cliente_id: string;
   cliente_nombre: string;
+  nombre_proyecto?: string;
   descripcion_proyecto: string;
   items: PresupuestoItem[];
   servicios_opcionales: PresupuestoItem[];

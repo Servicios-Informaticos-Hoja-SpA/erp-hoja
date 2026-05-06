@@ -46,6 +46,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   // Form State
   const [selectedCliente, setSelectedCliente] = useState("");
   const [proyecto, setProyecto] = useState("");
+  const [descripcionProyecto, setDescripcionProyecto] = useState("");
   const [items, setItems] = useState<PresupuestoItem[]>([]);
   const [optionalItems, setOptionalItems] = useState<PresupuestoItem[]>([]);
   const [params, setParams] = useState<Record<string, string>>({
@@ -73,7 +74,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         if (id) {
           const pres = await getPresupuestoById(id);
           setSelectedCliente(pres.cliente_id);
-          setProyecto(pres.descripcion_proyecto);
+          setProyecto(pres.nombre_proyecto || pres.descripcion_proyecto || "");
+          setDescripcionProyecto(pres.nombre_proyecto ? (pres.descripcion_proyecto || "") : "");
           setItems(pres.items);
           setOptionalItems(pres.servicios_opcionales || []);
           setParams(pres.parametros_personalizados);
@@ -164,7 +166,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       numero: nextNumber,
       cliente_id: selectedCliente,
       cliente_nombre: cliente?.nombre || "",
-      descripcion_proyecto: proyecto,
+      nombre_proyecto: proyecto,
+      descripcion_proyecto: descripcionProyecto,
       items,
       servicios_opcionales: optionalItems,
       parametros_personalizados: params,
@@ -218,7 +221,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   const currentData: Partial<Presupuesto> = {
     numero: nextNumber,
     cliente_nombre: clientes.find(c => c.id === selectedCliente)?.nombre || "Nombre del Cliente",
-    descripcion_proyecto: proyecto,
+    nombre_proyecto: proyecto,
+    descripcion_proyecto: descripcionProyecto,
     items,
     servicios_opcionales: optionalItems,
     parametros_personalizados: params,
@@ -235,6 +239,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         setSelectedCliente={setSelectedCliente}
         proyecto={proyecto}
         setProyecto={setProyecto}
+        descripcionProyecto={descripcionProyecto}
+        setDescripcionProyecto={setDescripcionProyecto}
         items={items}
         addItem={addItem}
         removeItem={removeItem}

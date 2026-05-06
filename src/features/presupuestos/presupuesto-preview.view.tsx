@@ -82,9 +82,12 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
           </div>
           <div className="space-y-3">
             <h3 className="text-[9px] uppercase tracking-widest text-slate-400 font-bold border-b pb-1.5 mb-1" style={{ color: '#94a3b8', borderBottomColor: '#e2e8f0' }}>PROYECTO</h3>
-            <p className="text-xs text-slate-600 font-medium leading-relaxed" style={{ color: '#475569' }}>
-              {data.descripcion_proyecto || "Descripción general del proyecto y servicios a prestar."}
-            </p>
+            <div className="space-y-1">
+              {data.nombre_proyecto && <p className="font-bold text-slate-900 text-sm" style={{ color: '#0f172a' }}>{data.nombre_proyecto}</p>}
+              <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap" style={{ color: '#475569' }}>
+                {data.descripcion_proyecto || (data.nombre_proyecto ? "" : "Descripción general del proyecto y servicios a prestar.")}
+              </p>
+            </div>
           </div>
         </div>
 

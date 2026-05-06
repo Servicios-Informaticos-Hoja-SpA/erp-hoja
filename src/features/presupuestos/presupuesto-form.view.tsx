@@ -38,6 +38,8 @@ interface PresupuestoFormViewProps {
   setSelectedCliente: (id: string) => void;
   proyecto: string;
   setProyecto: (val: string) => void;
+  descripcionProyecto: string;
+  setDescripcionProyecto: (val: string) => void;
   items: PresupuestoItem[];
   addItem: (item?: Partial<PresupuestoItem>) => void;
   removeItem: (index: number) => void;
@@ -64,6 +66,8 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
   setSelectedCliente,
   proyecto,
   setProyecto,
+  descripcionProyecto,
+  setDescripcionProyecto,
   items,
   addItem,
   removeItem,
@@ -197,6 +201,16 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                   value={proyecto}
                   onChange={(e) => setProyecto(e.target.value)}
                   className="bg-muted/30 border-none h-12 sm:h-16 text-sm sm:text-xl font-bold px-4 sm:px-8 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Descripción del Proyecto</Label>
+                <Textarea 
+                  placeholder="Ej: El proyecto consiste en el desarrollo de..."
+                  value={descripcionProyecto}
+                  onChange={(e) => setDescripcionProyecto(e.target.value)}
+                  className="bg-muted/30 border-none min-h-[100px] text-sm sm:text-lg font-medium px-4 sm:px-8 py-4 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40 resize-none"
                 />
               </div>
             </div>
