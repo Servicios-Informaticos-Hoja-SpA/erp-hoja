@@ -100,6 +100,12 @@ export const getNextPresupuestoNumber = async (): Promise<string> => {
   const presupuestos = await getPresupuestos();
   if (!presupuestos || presupuestos.length === 0) return "0001";
   
-  const lastNum = Math.max(...presupuestos.map(p => parseInt(p.numero)));
+  const validNumbers = presupuestos
+    .map(p => parseInt(p.numero, 10))
+    .filter(n => !isNaN(n));
+    
+  if (validNumbers.length === 0) return "0001";
+  
+  const lastNum = Math.max(...validNumbers);
   return (lastNum + 1).toString().padStart(4, '0');
 };

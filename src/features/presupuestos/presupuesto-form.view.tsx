@@ -236,7 +236,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                               <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs sm:text-sm">$</span>
                               <Input 
                                 type="number"
-                                value={item.precio}
+                                value={Number.isNaN(item.precio) ? "" : item.precio}
                                 onChange={(e) => updateItem(index, 'precio', parseFloat(e.target.value))}
                                 className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg pl-6 sm:pl-8 rounded-xl w-full"
                               />
@@ -246,7 +246,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                             <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block text-center">Cant.</Label>
                             <Input 
                               type="number"
-                              value={item.cantidad}
+                              value={Number.isNaN(item.cantidad) ? "" : item.cantidad}
                               onChange={(e) => updateItem(index, 'cantidad', parseInt(e.target.value))}
                               className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg text-center rounded-xl w-full"
                             />
@@ -295,7 +295,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">$</span>
                       <Input 
                         type="number"
-                        value={item.precio}
+                        value={Number.isNaN(item.precio) ? "" : item.precio}
                         onChange={(e) => updateOptionalItem(index, 'precio', parseFloat(e.target.value))}
                         className="w-full sm:w-32 bg-muted/40 border-none h-10 sm:h-12 font-black text-center pl-6 rounded-xl text-sm"
                       />
