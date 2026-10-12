@@ -485,6 +485,7 @@ export interface ProspectingSession {
   metaObjetivo: number;
   contactosCompletados: number;
   metaCumplida: boolean;
+  estado?: "activa" | "pausada" | "finalizada" | "cancelada";
   createdAt?: FechaRegistro;
   updatedAt?: FechaRegistro;
 }

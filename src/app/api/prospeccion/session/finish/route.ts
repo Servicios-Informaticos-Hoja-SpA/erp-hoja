@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       duracionSegundos,
       duracionMinutos,
       metaCumplida,
+      estado: "finalizada",
       updatedAt: horaFin,
     });
 
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       duracionSegundos,
       duracionMinutos,
       metaCumplida,
+      estado: "finalizada",
     };
 
     // Actualizar Racha Diaria del Usuario en 'user_streaks'

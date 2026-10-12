@@ -31,6 +31,7 @@ export async function POST(request: Request) {
       duracionMinutos: 0,
       duracionSegundos: 0,
       metaCumplida: false,
+      estado: "activa",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };

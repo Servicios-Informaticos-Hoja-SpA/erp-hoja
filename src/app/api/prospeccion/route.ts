@@ -45,10 +45,16 @@ export async function GET(request: Request) {
       limit(30)
     );
     const sessionsSnap = await getDocs(sessionsQuery);
-    const sessions: ProspectingSession[] = sessionsSnap.docs.map((d) => ({
+    const rawSessions: ProspectingSession[] = sessionsSnap.docs.map((d) => ({
       id: d.id,
       ...(d.data() as ProspectingSession),
     }));
+    const sessions = rawSessions.filter((s) => s.estado !== "cancelada");
+
+    // Identificar si existe una sesión en curso o pausada (activa o sin hora de fin creada recientemente)
+    const activeSession = sessions.find((s) => 
+      !s.horaFin && (s.estado === "activa" || s.estado === "pausada" || !s.estado)
+    ) || null;
 
     // 3. Obtener prospectos recientes
     const prospectsQuery = query(
@@ -135,6 +141,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       streak,
+      activeSession,
       sessions,
       prospects,
       stats: {

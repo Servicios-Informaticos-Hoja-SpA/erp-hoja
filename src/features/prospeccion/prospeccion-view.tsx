@@ -25,7 +25,10 @@ import {
   ChevronRight,
   ShieldAlert,
   SlidersHorizontal,
-  Mail
+  Mail,
+  Play,
+  Pause,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,10 +44,12 @@ import {
 import { 
   getProspeccionData, 
   updateProspectEstado, 
+  finishProspectingSession,
+  cancelProspectingSession,
   ProspeccionStatsResponse 
 } from "@/lib/services";
 import { useAuth } from "@/context/auth-context";
-import { SessionModal } from "./session-modal";
+import { SessionModal, ACTIVE_SESSION_STORAGE_KEY } from "./session-modal";
 import { ProspeccionSkeleton } from "@/components/common/skeletons";
 import { toast } from "sonner";
 
@@ -55,6 +60,8 @@ export function ProspeccionView() {
   const [data, setData] = useState<ProspeccionStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [resumedSession, setResumedSession] = useState<ProspectingSession | null>(null);
+  const [localStoredSession, setLocalStoredSession] = useState<ProspectingSession | null>(null);
   const [statsPeriod, setStatsPeriod] = useState<"dia" | "semana" | "mes">("dia");
   
   // Filtros de tabla de prospectos
@@ -64,22 +71,97 @@ export function ProspeccionView() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  const checkLocalStorageSession = useCallback(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.session?.id) {
+            setLocalStoredSession(parsed.session);
+            return parsed.session as ProspectingSession;
+          }
+        }
+      }
+    } catch {
+      // Ignorar error de parsing
+    }
+    setLocalStoredSession(null);
+    return null;
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getProspeccionData(userId);
       setData(res);
+      checkLocalStorageSession();
     } catch (error) {
       console.error("Error al cargar datos de prospección:", error);
       toast.error("Error al cargar estadísticas de prospección");
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, checkLocalStorageSession]);
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    checkLocalStorageSession();
+  }, [loadData, checkLocalStorageSession]);
+
+  // Sesión en curso activa (desde el backend o desde localStorage)
+  const currentActiveSession = data?.activeSession || localStoredSession;
+
+  const handleResumeSession = (sess: ProspectingSession) => {
+    setResumedSession(sess);
+    setIsModalOpen(true);
+  };
+
+  const handleStartNewSession = () => {
+    setResumedSession(null);
+    setIsModalOpen(true);
+  };
+
+  const handleQuickFinish = async (sess: ProspectingSession) => {
+    if (!sess.id) return;
+    try {
+      setLoading(true);
+      await finishProspectingSession(sess.id, sess.duracionSegundos || 0, userId);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+      setLocalStoredSession(null);
+      await loadData();
+      toast.success("Sesión finalizada y guardada exitosamente.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al finalizar la sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickDiscard = async (sess: ProspectingSession) => {
+    if (!sess.id) return;
+    if (!confirm("¿Deseas descartar esta sesión en curso? Los datos se eliminarán para que no quede como incompleta.")) {
+      return;
+    }
+    try {
+      setLoading(true);
+      await cancelProspectingSession(sess.id);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+      setLocalStoredSession(null);
+      await loadData();
+      toast.info("Sesión descartada.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al descartar la sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStatusChange = async (prospectId: string, nuevoEstado: ProspectEstado) => {
     try {
@@ -196,8 +278,61 @@ export function ProspeccionView() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen px-3 py-6 sm:px-8 sm:py-10 max-w-7xl mx-auto space-y-8 sm:space-y-10">
+    <div className="flex flex-col min-h-screen px-3 py-6 sm:px-8 sm:py-10 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       
+      {/* BANNER: Sesión en curso activa o pausada detectada */}
+      {currentActiveSession && (
+        <div className="relative overflow-hidden rounded-2xl border border-indigo-500/40 bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 p-4 sm:p-5 shadow-xl backdrop-blur-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3.5">
+            <div className="h-11 w-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+              <Play className="h-5 w-5 animate-pulse text-indigo-400" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-300">
+                  {currentActiveSession.estado === "pausada" ? "⏸ Sesión en Pausa" : "⚡ Sesión Activa en Curso"}
+                </span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
+                  {currentActiveSession.contactosCompletados} de {currentActiveSession.metaObjetivo} contactos
+                </span>
+                {currentActiveSession.duracionMinutos > 0 && (
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    • {formatMinutos(currentActiveSession.duracionMinutos)} dedicados
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                No has perdido tu avance. Puedes retomarla ahora, finalizarla para consolidar tu tiempo o descartarla.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+            <Button
+              onClick={() => handleResumeSession(currentActiveSession)}
+              className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs gap-1.5 shadow-md shadow-indigo-600/30"
+            >
+              <Play className="h-3.5 w-3.5" /> Retomar Sesión
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleQuickFinish(currentActiveSession)}
+              className="h-10 px-3.5 rounded-xl border-white/15 bg-slate-900 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-slate-200 hover:text-emerald-300 font-bold text-xs gap-1.5"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Finalizar Ahora
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => handleQuickDiscard(currentActiveSession)}
+              className="h-10 px-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 text-xs"
+              title="Descartar sesión para no dejarla en el historial"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Hero con Gamificación de Racha y Botón de Inicio */}
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-8 shadow-2xl">
         <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -250,14 +385,40 @@ export function ProspeccionView() {
               </div>
             </div>
 
-            {/* Botón Principal de Iniciar Sesión */}
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-base shadow-xl shadow-primary/25 hover:scale-105 active:scale-95 transition-all gap-3"
-            >
-              <Target className="h-5 w-5" />
-              <span>Iniciar Sesión</span>
-            </Button>
+            {/* Botón Principal de Iniciar / Continuar Sesión */}
+            <div className="flex flex-col gap-1.5">
+              <Button
+                onClick={() => {
+                  if (currentActiveSession) {
+                    handleResumeSession(currentActiveSession);
+                  } else {
+                    handleStartNewSession();
+                  }
+                }}
+                className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-base shadow-xl shadow-primary/25 hover:scale-105 active:scale-95 transition-all gap-3"
+              >
+                {currentActiveSession ? (
+                  <>
+                    <Play className="h-5 w-5" />
+                    <span>Continuar ({currentActiveSession.contactosCompletados}/{currentActiveSession.metaObjetivo})</span>
+                  </>
+                ) : (
+                  <>
+                    <Target className="h-5 w-5" />
+                    <span>Iniciar Sesión</span>
+                  </>
+                )}
+              </Button>
+              {currentActiveSession && (
+                <button
+                  type="button"
+                  onClick={handleStartNewSession}
+                  className="text-center text-[11px] text-slate-400 hover:text-white underline font-medium transition-colors"
+                >
+                  O iniciar otra sesión desde cero
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -841,9 +1002,17 @@ export function ProspeccionView() {
                       <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-black">
                         🏆 Meta Cumplida
                       </Badge>
+                    ) : sess.estado === "pausada" ? (
+                      <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] font-black">
+                        ⏸ En Pausa
+                      </Badge>
+                    ) : !sess.horaFin ? (
+                      <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-[10px] font-black">
+                        ⚡ En Curso
+                      </Badge>
                     ) : (
-                      <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] font-black">
-                        Incompleta
+                      <Badge className="bg-slate-500/20 text-slate-300 border-slate-500/30 text-[10px] font-black">
+                        Finalizada ({sess.contactosCompletados}/{sess.metaObjetivo})
                       </Badge>
                     )}
                   </div>
@@ -861,9 +1030,19 @@ export function ProspeccionView() {
                       </div>
                     </div>
 
-                    <div className="h-10 w-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-primary">
-                      <Target className="h-5 w-5" />
-                    </div>
+                    {(!sess.horaFin || sess.estado === "pausada" || sess.estado === "activa") ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleResumeSession(sess)}
+                        className="h-9 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold gap-1 shadow-md shadow-indigo-600/25"
+                      >
+                        <Play className="h-3.5 w-3.5" /> Retomar
+                      </Button>
+                    ) : (
+                      <div className="h-10 w-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-primary">
+                        <Target className="h-5 w-5" />
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -875,8 +1054,18 @@ export function ProspeccionView() {
       {/* 5. Modal de Sesión Guiada de Prospección */}
       <SessionModal
         open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        onSessionFinished={loadData}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) {
+            setResumedSession(null);
+            checkLocalStorageSession();
+          }
+        }}
+        resumedSession={resumedSession}
+        onSessionFinished={() => {
+          checkLocalStorageSession();
+          loadData();
+        }}
       />
     </div>
   );

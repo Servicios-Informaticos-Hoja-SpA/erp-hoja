@@ -314,6 +314,7 @@ export const getAlertasGlobales = async (): Promise<AlertaOperativa[]> => {
 // --- SESIONES DE PROSPECCIÓN GUIADA ---
 export interface ProspeccionStatsResponse {
   streak: UserStreak;
+  activeSession?: ProspectingSession | null;
   sessions: ProspectingSession[];
   prospects: Prospect[];
   stats: {
@@ -361,6 +362,37 @@ export const startProspectingSession = async (
   });
 };
 
+export const pauseProspectingSession = async (
+  sessionId: string,
+  duracionSegundos: number
+): Promise<{ session: ProspectingSession; message: string }> => {
+  return fetcher("/api/prospeccion/session/pause", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, duracionSegundos }),
+  });
+};
+
+export const resumeProspectingSession = async (
+  sessionId: string
+): Promise<{ session: ProspectingSession; message: string }> => {
+  return fetcher("/api/prospeccion/session/resume", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+};
+
+export const cancelProspectingSession = async (
+  sessionId: string
+): Promise<{ success: boolean; message: string }> => {
+  return fetcher("/api/prospeccion/session/cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+};
+
 export const saveProspectContact = async (
   data: Partial<Prospect>
 ): Promise<{ prospect: Prospect; session?: ProspectingSession }> => {
@@ -393,5 +425,6 @@ export const updateProspectEstado = async (
     body: JSON.stringify({ estado }),
   });
 };
+
 
 
