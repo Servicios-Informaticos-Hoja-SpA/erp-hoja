@@ -19,7 +19,7 @@ export const BudgetPlaceholder = () => {
       </p>
       <Button 
         variant="outline" 
-        onClick={() => window.history.back()}
+        onClick={() => router.back()}
         className="gap-2"
       >
         <ArrowLeft size={18} />

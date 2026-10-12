@@ -6,31 +6,51 @@ import { Button } from "@/components/ui/button";
 import { Presupuesto, ConfiguracionGlobal } from "@/lib/types";
 
 interface PresupuestoPreviewProps {
+  id?: string;
   data: Partial<Presupuesto>;
   config: ConfiguracionGlobal | null;
   isPrinting?: boolean;
 }
 
-export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, config, isPrinting = false }) => {
+export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ id, data, config, isPrinting = false }) => {
   const [isZoomed, setIsZoomed] = React.useState(false);
   if (!data) return null;
 
-  const formatDate = (date: any) => {
+  const formatDate = (date: unknown) => {
     if (!date) return "";
     try {
-      const d = typeof date === 'string' ? new Date(date) : (date.seconds ? new Date(date.seconds * 1000) : new Date(date));
-      return d.toLocaleDateString('es-CL');
-    } catch (e) {
+      if (typeof date === "string") {
+        return new Date(date).toLocaleDateString("es-CL");
+      }
+      if (typeof date === "object" && date !== null && "seconds" in date) {
+        return new Date((date as { seconds: number }).seconds * 1000).toLocaleDateString("es-CL");
+      }
+      return new Date(String(date)).toLocaleDateString("es-CL");
+    } catch {
       return "";
     }
+  };
+
+  const isUF = data.moneda === 'UF';
+  const valorUF = data.valorUFReferencial || 38000;
+
+  const formatCurrencyShort = (amount: number) => {
+    if (isUF) {
+      return `${amount.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`;
+    }
+    return `$${amount.toLocaleString('es-CL')}`;
   };
 
   const calculatedNeto = data.items?.reduce((acc, curr) => acc + curr.total, 0) || 0;
   const calculatedIva = Math.round(calculatedNeto * 0.19);
   const calculatedTotal = calculatedNeto + calculatedIva;
 
+  const montoAnticipo = data.bloqueDesarrollo?.montoAnticipo ?? (isUF ? Number((calculatedTotal * 0.5).toFixed(2)) : Math.round(calculatedTotal * 0.5));
+  const montoEntrega = data.bloqueDesarrollo?.montoEntrega ?? (isUF ? Number((calculatedTotal - montoAnticipo).toFixed(2)) : calculatedTotal - montoAnticipo);
+  const modalidadContinuidad = data.bloqueContinuidad?.modalidad || 'incluido_ano1';
+
   return (
-    <div className={`w-full relative pb-10 ${isPrinting ? "" : isZoomed ? "overflow-auto h-[75vh]" : "overflow-x-hidden min-h-[500px] sm:min-h-[900px]"}`}>
+    <div id={id} className={`w-full relative pb-10 ${isPrinting ? "" : isZoomed ? "overflow-auto h-[75vh]" : "overflow-x-hidden min-h-[500px] sm:min-h-[900px]"}`}>
       {/* Botón de Zoom Flotante para Móvil */}
       {!isPrinting && (
         <div className="fixed bottom-6 right-6 z-[110] sm:hidden">
@@ -110,10 +130,10 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
                   </td>
                   <td className="py-3 text-center text-xs text-slate-500 font-medium" style={{ color: '#64748b' }}>{item.cantidad}</td>
                   <td className="py-3 text-right text-xs text-slate-500 font-medium" style={{ color: '#64748b' }}>
-                    ${item.precio.toLocaleString('es-CL')}
+                    {formatCurrencyShort(item.precio)}
                   </td>
                   <td className="py-3 text-right text-xs font-bold text-slate-900" style={{ color: '#0f172a' }}>
-                    ${item.total.toLocaleString('es-CL')}
+                    {formatCurrencyShort(item.total)}
                   </td>
                 </tr>
               ))}
@@ -122,41 +142,116 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ data, co
 
           {/* Tax Breakdown Totals */}
           <div className="flex justify-end mb-6 break-inside-avoid" style={{ breakInside: 'avoid' }}>
-            <div className="w-56 space-y-1.5">
-              <div className="flex justify-between text-[10px] text-slate-500 font-medium" style={{ color: '#64748b' }}>
+            <div className="w-72 space-y-1.5">
+              <div className="flex justify-between text-[11px] text-slate-500 font-medium" style={{ color: '#64748b' }}>
                 <span>Neto</span>
-                <span style={{ color: '#1e293b' }}>
-                  ${calculatedNeto.toLocaleString('es-CL')}
+                <span className="font-semibold" style={{ color: '#1e293b' }}>
+                  {formatCurrencyShort(calculatedNeto)}
                 </span>
               </div>
-              <div className="flex justify-between text-[10px] text-slate-500 font-medium" style={{ color: '#64748b' }}>
+              <div className="flex justify-between text-[11px] text-slate-500 font-medium" style={{ color: '#64748b' }}>
                 <span>IVA (19%)</span>
-                <span style={{ color: '#1e293b' }}>
-                  ${calculatedIva.toLocaleString('es-CL')}
+                <span className="font-semibold" style={{ color: '#1e293b' }}>
+                  {formatCurrencyShort(calculatedIva)}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t-2 border-slate-900" style={{ borderTopColor: '#0f172a' }}>
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-900" style={{ color: '#0f172a' }}>Total Final</span>
-                <span className="text-xl font-black text-slate-900" style={{ color: '#0f172a' }}>
-                  ${calculatedTotal.toLocaleString('es-CL')}
-                </span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900" style={{ color: '#0f172a' }}>Total Final</span>
+                <div className="text-right">
+                  <span className="text-xl font-black text-slate-900" style={{ color: '#0f172a' }}>
+                    {formatCurrencyShort(calculatedTotal)}
+                  </span>
+                  {isUF && (
+                    <p className="text-[10px] text-slate-500 font-semibold" style={{ color: '#64748b' }}>
+                      ≈ ${(calculatedTotal * valorUF).toLocaleString('es-CL')} CLP (UF Ref: ${valorUF.toLocaleString('es-CL')})
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Optional Services / Recurring */}
+          {/* Bloque 1: Condiciones de Pago Desarrollo (50% / 50%) */}
+          <div className="mb-6 p-4 rounded-xl border border-slate-200 bg-slate-50/70 break-inside-avoid" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0', breakInside: 'avoid' }}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[9px] uppercase tracking-widest font-black text-indigo-700" style={{ color: '#4338ca' }}>
+                BLOQUE 1: DESARROLLO E IMPLEMENTACIÓN
+              </h3>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800" style={{ backgroundColor: '#e0e7ff', color: '#3730a3' }}>
+                Modalidad 50% / 50%
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="p-2.5 rounded-lg bg-white border border-slate-200" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+                <p className="text-[9px] font-black uppercase tracking-wider text-slate-500" style={{ color: '#64748b' }}>1. Anticipo Inicial (50%)</p>
+                <p className="text-sm font-black text-slate-900 mt-0.5" style={{ color: '#0f172a' }}>
+                  {formatCurrencyShort(montoAnticipo)}
+                </p>
+                <p className="text-[9px] text-slate-500 mt-1" style={{ color: '#64748b' }}>Para inicio de arquitectura, diseño y configuración de entorno.</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-white border border-slate-200" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+                <p className="text-[9px] font-black uppercase tracking-wider text-slate-500" style={{ color: '#64748b' }}>2. Saldo contra Entrega (50%)</p>
+                <p className="text-sm font-black text-slate-900 mt-0.5" style={{ color: '#0f172a' }}>
+                  {formatCurrencyShort(montoEntrega)}
+                </p>
+                <p className="text-[9px] text-slate-500 mt-1" style={{ color: '#64748b' }}>Contra puesta en producción y entrega de accesos definitivos.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bloque 2: Continuidad, Hosting y Soporte */}
+          <div className="mb-6 p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 break-inside-avoid" style={{ backgroundColor: '#eef2ff', borderColor: '#c7d2fe', breakInside: 'avoid' }}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[9px] uppercase tracking-widest font-black text-indigo-900" style={{ color: '#312e81' }}>
+                BLOQUE 2: CONTINUIDAD, HOSTING Y SOPORTE
+              </h3>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-200 text-indigo-900" style={{ backgroundColor: '#c7d2fe', color: '#1e1b4b' }}>
+                {modalidadContinuidad === 'incluido_ano1' ? 'Año 1 Incluido' : modalidadContinuidad === 'mensual' ? 'Cobro Mensual' : 'Cobro Anual'}
+              </span>
+            </div>
+            {modalidadContinuidad === 'incluido_ano1' ? (
+              <div className="p-3 bg-white rounded-lg border border-indigo-100" style={{ backgroundColor: '#ffffff', borderColor: '#e0e7ff' }}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black text-slate-800" style={{ color: '#1e293b' }}>
+                    Hosting y Soporte Técnico Primer Año: <span className="text-emerald-600 font-black" style={{ color: '#059669' }}>INCLUIDO SIN COSTO ($0)</span>
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-600 mt-1" style={{ color: '#475569' }}>
+                  {data.bloqueContinuidad?.detalle || "Incluye servidores Cloud de alto rendimiento, certificados SSL automáticos, casillas de correo corporativo, copias de seguridad semanales y soporte técnico ante incidencias durante los primeros 12 meses."}
+                </p>
+                <p className="text-[9px] text-slate-400 mt-1.5 font-medium" style={{ color: '#94a3b8' }}>
+                  * A contar del mes 13, la renovación anual se coordina con 30 días de anticipación según el plan acordado.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 bg-white rounded-lg border border-indigo-100" style={{ backgroundColor: '#ffffff', borderColor: '#e0e7ff' }}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black text-slate-800" style={{ color: '#1e293b' }}>
+                    Monto Recurrente: <span className="text-indigo-700 font-black" style={{ color: '#4338ca' }}>
+                      {formatCurrencyShort(data.bloqueContinuidad?.monto || 0)} / {modalidadContinuidad === 'mensual' ? 'mes' : 'año'}
+                    </span>
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-600 mt-1" style={{ color: '#475569' }}>
+                  {data.bloqueContinuidad?.detalle || "Servicio de hosting administrado, soporte técnico prioritario, casillas de correo y copias de seguridad continuas a contar de la entrega del proyecto."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Optional Services / Recurring extras */}
           {data.servicios_opcionales && data.servicios_opcionales.length > 0 && (
-            <div className="mb-6 p-4 rounded-xl border-2 border-dashed border-slate-100 break-inside-avoid" style={{ backgroundColor: '#ffffff', breakInside: 'avoid' }}>
-              <h3 className="text-[9px] uppercase tracking-widest text-primary font-black mb-3" style={{ color: '#abaafd' }}>SERVICIOS RECURRENTES / OPCIONALES</h3>
+            <div className="mb-6 p-4 rounded-xl border-2 border-dashed border-slate-200 break-inside-avoid" style={{ backgroundColor: '#ffffff', breakInside: 'avoid' }}>
+              <h3 className="text-[9px] uppercase tracking-widest text-slate-500 font-black mb-3" style={{ color: '#64748b' }}>SERVICIOS RECURRENTES ADICIONALES</h3>
               <div className="space-y-2">
                 {data.servicios_opcionales.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center border-b border-slate-50 pb-1.5">
+                  <div key={index} className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                     <div>
                       <p className="text-xs font-bold text-slate-700" style={{ color: '#334155' }}>{item.descripcion}</p>
                       <span className="text-[8px] uppercase font-bold text-slate-400" style={{ color: '#94a3b8' }}>Frecuencia: {item.frecuencia}</span>
                     </div>
                     <p className="text-sm font-black text-slate-900" style={{ color: '#0f172a' }}>
-                      ${item.precio.toLocaleString('es-CL')} <span className="text-[9px] text-slate-400 font-medium" style={{ color: '#94a3b8' }}>+ IVA /{item.frecuencia}</span>
+                      {formatCurrencyShort(item.precio)} <span className="text-[9px] text-slate-400 font-medium" style={{ color: '#94a3b8' }}>+ IVA /{item.frecuencia}</span>
                     </p>
                   </div>
                 ))}

@@ -4,12 +4,13 @@ import React, { useState, useEffect } from "react";
 import { PresupuestoListView } from "./presupuesto-list.view";
 import { 
   getPresupuestos, 
-  savePresupuesto, 
+  updatePresupuesto,
   getConfig,
-  getClientes,
-  getCatalogo
+  saveProyecto,
+  getClientes
 } from "@/lib/services";
-import { Presupuesto, Cliente, Servicio, ConfiguracionGlobal } from "@/lib/types";
+import { Presupuesto, ConfiguracionGlobal, Proyecto, PresupuestoEstado, PresupuestoSeguimiento, Cliente } from "@/lib/types";
+import { getDefaultChecklist } from "@/features/proyectos/checklist-templates";
 import { generatePDF } from "@/lib/pdf-utils";
 import { toast } from "sonner";
 import { PresupuestoForm } from "./presupuesto-form";
@@ -21,10 +22,9 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Loader2, X, Eye } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -32,11 +32,15 @@ import { auth } from "@/lib/firebase";
 export const PresupuestoList = () => {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
+
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   
-  // States for the new side panel workflow
+  // Side panel workflow
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -54,19 +58,56 @@ export const PresupuestoList = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const p = await getPresupuestos();
+      const [p, cls] = await Promise.all([
+        getPresupuestos(),
+        getClientes().catch(() => [])
+      ]);
       setPresupuestos(p);
+      setClientes(cls);
     } catch (err) {
       console.error(err);
-      toast.error("Error al cargar datos");
+      toast.error("Error al cargar presupuestos");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    let isMounted = true;
+    if (user) {
+      Promise.all([
+        getPresupuestos(),
+        getClientes().catch(() => [])
+      ])
+        .then(([p, cls]) => {
+          if (isMounted) {
+            setPresupuestos(p);
+            setClientes(cls);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          if (isMounted) {
+            toast.error("Error al cargar presupuestos");
+            setLoading(false);
+          }
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
+
+  // Si viene con ?id=... en la URL, pre-filtrar o enfocar
+  useEffect(() => {
+    if (queryId && presupuestos.length > 0) {
+      const found = presupuestos.find(p => p.id === queryId);
+      if (found) {
+        setSearch(found.numero);
+      }
+    }
+  }, [queryId, presupuestos]);
 
   const handleDownload = async (p: Presupuesto, action: 'save' | 'preview' = 'save') => {
     setIsGeneratingPDF(true);
@@ -76,10 +117,10 @@ export const PresupuestoList = () => {
       if (!config) throw new Error("No se pudo cargar la configuración global");
       setGlobalConfig(config);
       
-      // Esperamos un pequeño frame para asegurar que el DOM se renderizó con los nuevos estados
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const filename = `COT_${p.numero}_${p.cliente_nombre.replace(/\s+/g, '_').toUpperCase()}`;
+      const clientSlug = (p.cliente_nombre || "CLIENTE").replace(/\s+/g, '_').toUpperCase();
+      const filename = `COT_${p.numero}_${clientSlug}`;
       await generatePDF("presupuesto-document-print", filename, action);
       toast.success(action === 'preview' ? "Vista previa generada" : "Documento descargado");
     } catch (err) {
@@ -100,10 +141,143 @@ export const PresupuestoList = () => {
     }
   };
 
+  const handleCreateProjectFromBudget = async (p: Presupuesto) => {
+    if (!p.id) return;
+    try {
+      const totalAmount = p.totales?.total || 0;
+      const nuevoProyecto: Partial<Proyecto> = {
+        presupuestoId: p.id,
+        presupuestoNumero: p.numero,
+        clienteId: p.cliente_id,
+        clienteNombre: p.cliente_nombre,
+        nombre: p.nombre_proyecto || `Proyecto COT ${p.numero} - ${p.cliente_nombre}`,
+        descripcion: p.descripcion_proyecto || "",
+        tipoServicio: "desarrollo_web",
+        fase: "planificacion",
+        fechaInicio: new Date().toISOString().split("T")[0],
+        fechaEntregaComprometida: "",
+        montos: {
+          neto: p.totales?.neto || 0,
+          iva: p.totales?.iva || 0,
+          total: totalAmount,
+        },
+        hitosPago: [
+          {
+            id: `hito-1-${Date.now()}`,
+            titulo: "50% Anticipo de Inicio",
+            porcentaje: 50,
+            monto: Math.round(totalAmount * 0.5),
+            fechaEstimada: new Date().toISOString().split("T")[0],
+            estado: "pendiente",
+          },
+          {
+            id: `hito-2-${Date.now()}`,
+            titulo: "50% Contra Entrega y Conformidad",
+            porcentaje: 50,
+            monto: Math.round(totalAmount * 0.5),
+            fechaEstimada: "",
+            estado: "pendiente",
+          },
+        ],
+        progresoPorcentaje: 0,
+        checklist: getDefaultChecklist("desarrollo_web"),
+      };
+
+      const res = await saveProyecto(nuevoProyecto);
+
+      // Actualizar presupuesto con estado aprobado y proyecto_id
+      await updatePresupuesto(p.id, {
+        estado: "aprobado",
+        proyecto_id: res.id,
+        alertaSilenciada: true,
+      });
+
+      toast.success("¡Proyecto creado y cotización aprobada con éxito!", {
+        action: {
+          label: "Ver Proyecto",
+          onClick: () => router.push(`/proyectos?id=${res.id}`),
+        },
+      });
+
+      load();
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al crear proyecto a partir de la cotización");
+    }
+  };
+
+  // Gestión de Ciclo de Vida: Actualizar estado
+  const handleUpdateEstado = async (p: Presupuesto, nuevoEstado: PresupuestoEstado) => {
+    if (!p.id) return;
+    try {
+      const updates: Partial<Presupuesto> = {
+        estado: nuevoEstado,
+      };
+
+      if (nuevoEstado === "enviado" && !p.fechaEnvio) {
+        updates.fechaEnvio = new Date().toISOString();
+      }
+
+      // Si pasa a negociación, aprobado o rechazado, despeja la alerta de sin respuesta
+      if (nuevoEstado === "en_negociacion" || nuevoEstado === "aprobado" || nuevoEstado === "rechazado") {
+        updates.alertaSilenciada = true;
+      }
+
+      await updatePresupuesto(p.id, updates);
+      setPresupuestos(prev => prev.map(item => item.id === p.id ? { ...item, ...updates } : item));
+      toast.success(`Cotización N° ${p.numero} actualizada a estado: ${nuevoEstado.toUpperCase()}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al cambiar estado de la cotización");
+    }
+  };
+
+  // Despejar / Silenciar Alerta
+  const handleDismissAlert = async (p: Presupuesto) => {
+    if (!p.id) return;
+    try {
+      await updatePresupuesto(p.id, { alertaSilenciada: true });
+      setPresupuestos(prev => prev.map(item => item.id === p.id ? { ...item, alertaSilenciada: true } : item));
+      toast.success(`Alerta de seguimiento despejada para Cotización N° ${p.numero}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al despejar alerta");
+    }
+  };
+
+  // Registrar Seguimiento Comercial
+  const handleRegisterFollowUp = async (p: Presupuesto, nota: string, tipo: string = "llamada") => {
+    if (!p.id) return;
+    try {
+      const nuevoSeguimiento: PresupuestoSeguimiento = {
+        fecha: new Date().toISOString(),
+        nota: nota.trim(),
+        tipo: tipo as "llamada" | "reunion" | "correo" | "whatsapp" | "otro",
+        autor: user?.displayName || user?.email || "Equipo Hoja SpA",
+      };
+
+      const historial = [...(p.historialSeguimientos || []), nuevoSeguimiento];
+      const updates: Partial<Presupuesto> = {
+        ultimoSeguimiento: nuevoSeguimiento,
+        historialSeguimientos: historial,
+        alertaSilenciada: false, // reinicia el contador de días con la nueva fecha
+        // Si el cliente respondió o hubo interacción, pasamos a en_negociacion
+        estado: p.estado === "borrador" ? "enviado" : (p.estado === "enviado" ? "en_negociacion" : p.estado),
+      };
+
+      await updatePresupuesto(p.id, updates);
+      setPresupuestos(prev => prev.map(item => item.id === p.id ? { ...item, ...updates } : item));
+      toast.success(`Seguimiento registrado con éxito para Cotización N° ${p.numero}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al registrar seguimiento");
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-10 w-10 animate-spin text-[#abaafd]" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
@@ -124,6 +298,7 @@ export const PresupuestoList = () => {
     <>
       <PresupuestoListView
         presupuestos={presupuestos}
+        clientes={clientes}
         search={search}
         setSearch={setSearch}
         onNew={() => setIsNew(true)}
@@ -133,6 +308,10 @@ export const PresupuestoList = () => {
         }}
         onView={handlePreview}
         onDownload={(p) => handleDownload(p, 'save')}
+        onCreateProject={handleCreateProjectFromBudget}
+        onUpdateEstado={handleUpdateEstado}
+        onDismissAlert={handleDismissAlert}
+        onRegisterFollowUp={handleRegisterFollowUp}
         loading={loading}
         onLogout={handleLogout}
       />
@@ -146,17 +325,24 @@ export const PresupuestoList = () => {
       }}>
         <SheetContent 
           side="right" 
-          className="!w-screen sm:!w-[70vw] sm:!max-w-[1100px] p-0 border-none shadow-2xl overflow-hidden flex flex-col [&>button]:hidden"
+          className="!w-screen sm:!w-[75vw] sm:!max-w-[1200px] p-0 border-l border-white/10 shadow-2xl overflow-hidden flex flex-col [&>button]:hidden bg-card"
         >
-          <SheetHeader className="p-6 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
+          <SheetHeader className="p-6 bg-slate-900 border-b border-white/10 flex flex-row items-center justify-between shrink-0">
             <div>
-              <SheetTitle className="text-2xl font-black tracking-tight uppercase leading-none">
-                {isNew ? "Crear Presupuesto" : "Editar Presupuesto"}
+              <SheetTitle className="text-xl sm:text-2xl font-black tracking-tight uppercase leading-none text-foreground">
+                {isNew ? "Emitir Nuevo Presupuesto" : "Editar Presupuesto y Condiciones"}
               </SheetTitle>
-              <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA Budget System</p>
+              <p className="text-xs font-bold text-primary uppercase tracking-widest mt-1">
+                Servicios Informáticos Hoja SpA &bull; Propuesta Comercial
+              </p>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => { setIsNew(false); setEditingId(null); }} className="rounded-full hover:bg-black/10">
-              <X className="h-6 w-6" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => { setIsNew(false); setEditingId(null); }} 
+              className="rounded-xl hover:bg-white/10 text-foreground h-10 w-10"
+            >
+              <X className="h-5 w-5" />
             </Button>
           </SheetHeader>
           
@@ -176,60 +362,44 @@ export const PresupuestoList = () => {
       {/* PDF Generation Overlay */}
       {isGeneratingPDF && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md">
-          <Loader2 className="h-12 w-12 animate-spin text-[#abaafd] mb-4" />
-          <p className="text-lg font-black tracking-tighter uppercase">Generando Documento Tributario...</p>
-          <p className="text-sm text-muted-foreground font-medium">Hoja SpA Engine v2.0</p>
-          
-          {/* Hidden template for PDF generation */}
-          <div className="fixed left-[-9999px] top-0 pointer-events-none">
-            {downloadingPresupuesto && (
-              <div id="presupuesto-document-print">
-                <PresupuestoPreview 
-                  data={downloadingPresupuesto} 
-                  config={globalConfig} 
-                  isPrinting={true}
-                />
-              </div>
-            )}
-          </div>
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+          <p className="text-base font-black text-foreground">Generando documento institucional PDF...</p>
         </div>
       )}
 
-      {/* In-page Preview Dialog */}
+      {/* Template oculto de generación de PDF para presupuestos */}
+      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
+        {downloadingPresupuesto && globalConfig && (
+          <PresupuestoPreview
+            id="presupuesto-document-print"
+            data={downloadingPresupuesto}
+            config={globalConfig}
+          />
+        )}
+      </div>
+
+      {/* Modal de Vista Previa Rápida */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent showCloseButton={false} className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
-          <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setIsPreviewOpen(false)}
-                className="rounded-full hover:bg-[#2e3c7e]/10 text-[#2e3c7e]"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-              <div>
-                <DialogTitle className="text-2xl font-black tracking-tight uppercase leading-none">
-                  Vista Previa
-                </DialogTitle>
-                <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA Budget System</p>
-              </div>
-            </div>
-            <Button 
-              onClick={() => {
-                if (downloadingPresupuesto) handleDownload(downloadingPresupuesto, 'save');
-              }}
-              className="rounded-full bg-[#2e3c7e] text-white hover:scale-105 transition-all gap-2"
-            >
-              <Download className="h-4 w-4" /> <span className="hidden sm:inline">Descargar PDF</span>
-            </Button>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 border border-white/10 bg-card overflow-hidden">
+          <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between shrink-0">
+            <DialogTitle className="text-base font-black">
+              Vista Previa &bull; Cotización N° {downloadingPresupuesto?.numero}
+            </DialogTitle>
           </DialogHeader>
-          <div className="h-[75vh] overflow-auto">
-            <div className="flex justify-center py-4 min-w-max">
-              {downloadingPresupuesto && (
-                <PresupuestoPreview data={downloadingPresupuesto} config={globalConfig} />
-              )}
-            </div>
+          <div className="flex-1 overflow-auto p-4 sm:p-8 bg-slate-950/40">
+            {downloadingPresupuesto && globalConfig ? (
+              <div className="max-w-[800px] mx-auto shadow-2xl rounded-2xl overflow-hidden">
+                <PresupuestoPreview
+                  id="presupuesto-document-modal"
+                  data={downloadingPresupuesto}
+                  config={globalConfig}
+                />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

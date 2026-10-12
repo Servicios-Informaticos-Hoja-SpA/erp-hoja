@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Función auxiliar: verifica si el usuario está autenticado en Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 1. Clientes y CRM Operativo
+    match /clientes/{clienteId} {
+      allow read, write: if isAuthenticated();
+      
+      // Subcolecciones de notas o historial
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // 2. Presupuestos y Cotizaciones Comerciales
+    match /presupuestos/{presupuestoId} {
+      // Lectura interna para usuarios autenticados
+      allow read: if isAuthenticated();
+      
+      // Creación, edición y borrado interno
+      allow create, update, delete: if isAuthenticated();
+
+      // Acceso público para clientes con enlace de propuesta (/propuesta/[token])
+      // Permite lectura pública si el documento cuenta con un token generado
+      allow get: if resource.data.tokenPublico != null;
+
+      // Permite al cliente presionar "Aceptar Propuesta" sin necesidad de autenticación interna
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['estado', 'alertaSilenciada', 'propuestaAceptadaEn', 'propuestaAceptadaPor', 'updatedAt']);
+    }
+
+    // 3. Suscripciones y Hosting Recurrente
+    match /subscriptions/{subId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 4. Gastos Operativos y Costos de Infraestructura
+    match /expenses/{expenseId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 5. Proyectos y Documentos Operativos
+    match /proyectos/{proyectoId} {
+      allow read, write: if isAuthenticated();
+      
+      match /documentos/{docId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // 6. Flujo de Caja
+    match /flujo_caja/{eventoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 7. Catálogo de Servicios y Configuración
+    match /catalogo/{servicioId} {
+      allow read: if true; // Lectura pública para cotizador
+      allow write: if isAuthenticated();
+    }
+
+    match /configuracion/{configId} {
+      allow read: if true; // Datos bancarios y contacto visibles en propuesta
+      allow write: if isAuthenticated();
+    }
+
+    // 8. Sesiones de Prospección Comercial Guiada & Gamificación
+    match /prospecting_sessions/{sessionId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /prospects/{prospectId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /user_streaks/{streakId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

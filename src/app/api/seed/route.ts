@@ -46,8 +46,9 @@ export async function GET() {
       message: "Base de datos poblada con éxito (Lite SDK)", 
       ids: { clients: [c1.id, c2.id] } 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("SEEDING ERROR:", error);
-    return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

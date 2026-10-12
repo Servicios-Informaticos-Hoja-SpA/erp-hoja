@@ -30,7 +30,7 @@ export const LoginFeature = () => {
       });
 
       router.push("/");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError("Credenciales inválidas o error de conexión.");
     } finally {

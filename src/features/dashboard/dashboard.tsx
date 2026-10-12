@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { DashboardView } from "./dashboard.view";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { getConfig, updateConfig } from "@/lib/services";
+import { getConfig, updateConfig, getDashboardMetrics, DashboardMetricsData } from "@/lib/services";
+import { toast } from "sonner";
 
 export const DashboardFeature = () => {
   const router = useRouter();
+  const [metrics, setMetrics] = useState<DashboardMetricsData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Inicializar configuración global si no existe
   useEffect(() => {
@@ -30,29 +31,64 @@ export const DashboardFeature = () => {
     checkConfig();
   }, []);
 
-  const handleLogout = async () => {
+  const handleRefresh = async () => {
+    setLoading(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      await signOut(auth);
-      window.location.href = "/login";
+      const data = await getDashboardMetrics();
+      setMetrics(data);
     } catch (err) {
-      console.error("Error signing out", err);
+      console.error("Error al cargar métricas de dashboard:", err);
+      toast.error("No se pudieron cargar las métricas en tiempo real");
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMetrics = async () => {
+      try {
+        const data = await getDashboardMetrics();
+        if (isMounted) {
+          setMetrics(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error al cargar métricas de dashboard:", err);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchMetrics();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleAppClick = (app: string) => {
     if (app === "presupuestos") {
       router.push("/presupuestos");
     } else if (app === "clientes") {
       router.push("/clientes");
+    } else if (app === "proyectos") {
+      router.push("/proyectos");
+    } else if (app === "suscripciones") {
+      router.push("/suscripciones");
+    } else if (app === "flujo-caja") {
+      router.push("/flujo-caja");
+    } else if (app === "prospeccion") {
+      router.push("/prospeccion");
     }
   };
 
   return (
     <DashboardView
-      onLogout={handleLogout}
+      metrics={metrics}
+      loading={loading}
+      onRefresh={handleRefresh}
       onAppClick={handleAppClick}
       companyName="Servicios Informáticos Hoja SpA"
     />
   );
 };
+

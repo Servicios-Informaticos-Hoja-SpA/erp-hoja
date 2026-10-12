@@ -13,7 +13,7 @@ import {
   Save, 
   BadgePercent
 } from "lucide-react";
-import { Cliente, Servicio, PresupuestoItem } from "@/lib/types";
+import { Cliente, Servicio, PresupuestoItem, PresupuestoEstado, ModalidadContinuidad } from "@/lib/types";
 import { 
   Select, 
   SelectContent, 
@@ -26,10 +26,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogTrigger,
-  DialogFooter
+  DialogTrigger
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 
 interface PresupuestoFormViewProps {
   clientes: Cliente[];
@@ -43,11 +41,11 @@ interface PresupuestoFormViewProps {
   items: PresupuestoItem[];
   addItem: (item?: Partial<PresupuestoItem>) => void;
   removeItem: (index: number) => void;
-  updateItem: (index: number, field: keyof PresupuestoItem, value: any) => void;
+  updateItem: (index: number, field: keyof PresupuestoItem, value: string | number) => void;
   optionalItems: PresupuestoItem[];
   addOptionalItem: () => void;
   removeOptionalItem: (index: number) => void;
-  updateOptionalItem: (index: number, field: keyof PresupuestoItem, value: any) => void;
+  updateOptionalItem: (index: number, field: keyof PresupuestoItem, value: string | number) => void;
   params: Record<string, string>;
   addParam: () => void;
   removeParam: (key: string) => void;
@@ -57,11 +55,23 @@ interface PresupuestoFormViewProps {
   onAddClient: (cliente: Partial<Cliente>) => Promise<void>;
   isSaving: boolean;
   totales: { neto: number; iva: number; total: number };
+  estado?: PresupuestoEstado;
+  setEstado?: (val: PresupuestoEstado) => void;
+  moneda?: "CLP" | "UF";
+  setMoneda?: (val: "CLP" | "UF") => void;
+  valorUF?: number;
+  setValorUF?: (val: number) => void;
+  modalidadContinuidad?: ModalidadContinuidad;
+  setModalidadContinuidad?: (val: ModalidadContinuidad) => void;
+  montoContinuidad?: number;
+  setMontoContinuidad?: (val: number) => void;
+  detalleContinuidad?: string;
+  setDetalleContinuidad?: (val: string) => void;
+  tokenPublico?: string;
 }
 
 export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
   clientes,
-  catalogo,
   selectedCliente,
   setSelectedCliente,
   proyecto,
@@ -77,14 +87,26 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
   removeOptionalItem,
   updateOptionalItem,
   params,
-  addParam,
   removeParam,
   updateParam,
   onPreview,
   onSave,
   onAddClient,
   isSaving,
-  totales
+  totales,
+  estado = "borrador",
+  setEstado,
+  moneda = "CLP",
+  setMoneda,
+  valorUF = 38000,
+  setValorUF,
+  modalidadContinuidad = "ano_1_incluido",
+  setModalidadContinuidad,
+  montoContinuidad = 0,
+  setMontoContinuidad,
+  detalleContinuidad = "Hosting Reseller cPanel, casillas corporativas, SSL y copias de seguridad semanales.",
+  setDetalleContinuidad,
+  tokenPublico,
 }) => {
   const [newClient, setNewClient] = useState({ 
     nombre: "", 
@@ -184,33 +206,108 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                     </DialogContent>
                   </Dialog>
                 </div>
-                <Select value={selectedCliente} onValueChange={(val) => setSelectedCliente(val || "")}>
-                  <SelectTrigger className="bg-muted/30 border-none h-12 sm:h-16 text-sm sm:text-xl font-bold px-4 sm:px-8 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40">
-                    <SelectValue>{currentClienteName || "Selecciona un cliente..."}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map(c => <SelectItem key={c.id} value={c.id!}>{c.nombre}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Cliente Asignado</Label>
+                    <Select value={selectedCliente} onValueChange={(val) => setSelectedCliente(val || "")}>
+                      <SelectTrigger className="bg-muted/20 border-2 border-white/15 h-12 text-sm font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30">
+                        <SelectValue>{currentClienteName || "Selecciona un cliente..."}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/15 text-foreground">
+                        {clientes.map(c => <SelectItem key={c.id} value={c.id!}>{c.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Estado del Presupuesto</Label>
+                    <Select 
+                      value={estado} 
+                      onValueChange={(val) => {
+                        if (val && setEstado) setEstado(val as PresupuestoEstado);
+                      }}
+                    >
+                      <SelectTrigger className="bg-muted/20 border-2 border-white/15 h-12 text-sm font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/15 text-foreground">
+                        <SelectItem value="borrador">📝 Borrador Interno</SelectItem>
+                        <SelectItem value="enviado">📤 Enviado al Cliente</SelectItem>
+                        <SelectItem value="en_negociacion">💬 En Negociación / Feedback</SelectItem>
+                        <SelectItem value="aprobado">✅ Aprobado</SelectItem>
+                        <SelectItem value="rechazado">❌ Rechazado</SelectItem>
+                        <SelectItem value="vencido">⏸️ Vencido / Descartado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Selección Dual de Moneda: CLP vs UF */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-white/10 bg-slate-950/40">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Moneda de la Propuesta</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={moneda === "CLP" ? "default" : "outline"}
+                        onClick={() => setMoneda && setMoneda("CLP")}
+                        className={`h-11 text-xs font-black rounded-xl border-2 transition-all ${
+                          moneda === "CLP" ? "bg-primary text-primary-foreground border-primary" : "border-white/15 bg-card/60 text-slate-300 hover:bg-white/5"
+                        }`}
+                      >
+                        🇨🇱 CLP (Pesos)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={moneda === "UF" ? "default" : "outline"}
+                        onClick={() => setMoneda && setMoneda("UF")}
+                        className={`h-11 text-xs font-black rounded-xl border-2 transition-all ${
+                          moneda === "UF" ? "bg-primary text-primary-foreground border-primary" : "border-white/15 bg-card/60 text-slate-300 hover:bg-white/5"
+                        }`}
+                      >
+                        📈 UF (Referencial)
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Valor UF Referencial (CLP)</Label>
+                      {moneda === "UF" && (
+                        <span className="text-[10px] font-bold text-emerald-400">
+                          1 UF = ${valorUF.toLocaleString('es-CL')}
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      type="number"
+                      value={valorUF}
+                      onChange={(e) => setValorUF && setValorUF(Number(e.target.value) || 38000)}
+                      placeholder="38000"
+                      className="bg-muted/20 border-2 border-white/15 h-11 text-sm font-bold px-4 rounded-xl shadow-inner"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Nombre del Proyecto</Label>
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Nombre del Proyecto / Asunto</Label>
                 <Input 
-                  placeholder="Ej: Desarrollo de Plataforma E-commerce"
+                  placeholder="Ej: Desarrollo de Plataforma E-commerce y Sistema POS"
                   value={proyecto}
                   onChange={(e) => setProyecto(e.target.value)}
-                  className="bg-muted/30 border-none h-12 sm:h-16 text-sm sm:text-xl font-bold px-4 sm:px-8 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40"
+                  className="bg-muted/20 border-2 border-white/15 h-12 text-sm sm:text-base font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30"
                 />
               </div>
 
-              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Descripción del Proyecto</Label>
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Descripción del Alcance Comercial</Label>
                 <Textarea 
-                  placeholder="Ej: El proyecto consiste en el desarrollo de..."
+                  placeholder="Ej: El proyecto consiste en el desarrollo e implementación de..."
                   value={descripcionProyecto}
                   onChange={(e) => setDescripcionProyecto(e.target.value)}
-                  className="bg-muted/30 border-none min-h-[100px] text-sm sm:text-lg font-medium px-4 sm:px-8 py-4 rounded-xl sm:rounded-2xl shadow-inner transition-all hover:bg-muted/40 resize-none"
+                  className="bg-muted/20 border-2 border-white/15 min-h-[90px] text-sm font-medium px-4 py-3 rounded-xl shadow-inner transition-all hover:bg-muted/30 resize-none"
                 />
               </div>
             </div>
@@ -314,7 +411,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                         className="w-full sm:w-32 bg-muted/40 border-none h-10 sm:h-12 font-black text-center pl-6 rounded-xl text-sm"
                       />
                     </div>
-                    <Select value={item.frecuencia} onValueChange={(val) => updateOptionalItem(index, 'frecuencia', val)}>
+                    <Select value={item.frecuencia} onValueChange={(val) => { if (val) updateOptionalItem(index, 'frecuencia', val); }}>
                       <SelectTrigger className="w-28 sm:w-36 bg-muted/40 border-none h-10 sm:h-12 font-bold rounded-xl text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -332,6 +429,152 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Bloque 1: Desarrollo e Implementación (Cobro único, 50/50) */}
+          <div className="space-y-4 p-6 rounded-2xl border-2 border-white/15 bg-slate-900/60 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-black">
+                  B1
+                </span>
+                Desarrollo e Implementación (Cobro Único)
+              </h3>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
+                50% Anticipo / 50% Entrega
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="p-4 rounded-xl border border-white/10 bg-card/60">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-1">
+                  1. Anticipo para Inicio (50%)
+                </span>
+                <span className="text-xl font-black text-emerald-400">
+                  {moneda === "UF" 
+                    ? `${(totales.total * 0.5).toLocaleString('es-CL')} UF` 
+                    : `$${Math.round(totales.total * 0.5).toLocaleString('es-CL')} CLP`}
+                </span>
+                <p className="text-[11px] text-muted-foreground mt-1">Requerido para reserva de agenda y despliegue de infraestructura base.</p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-white/10 bg-card/60">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-1">
+                  2. Contra Entrega y Conformidad (50%)
+                </span>
+                <span className="text-xl font-black text-primary">
+                  {moneda === "UF" 
+                    ? `${(totales.total * 0.5).toLocaleString('es-CL')} UF` 
+                    : `$${Math.round(totales.total * 0.5).toLocaleString('es-CL')} CLP`}
+                </span>
+                <p className="text-[11px] text-muted-foreground mt-1">Contra acta de entrega, capacitación y paso a producción.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bloque 2: Continuidad, Hosting y Soporte */}
+          <div className="space-y-4 p-6 rounded-2xl border-2 border-white/15 bg-slate-900/60 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 text-xs font-black">
+                  B2
+                </span>
+                Continuidad, Hosting y Soporte Técnico
+              </h3>
+              <span className="text-xs font-bold text-slate-400">
+                Garantía y operación del sistema
+              </span>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Modalidad de Continuidad</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant={modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido" ? "default" : "outline"}
+                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("incluido_ano1")}
+                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
+                      modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    🎁 Año 1 Incluido (Bonificado)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "default" : "outline"}
+                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("mensual")}
+                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
+                      modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    🔄 Cobro Mensual desde Entrega
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={modalidadContinuidad === "anual" || modalidadContinuidad === "recurrente_anual" ? "default" : "outline"}
+                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("anual")}
+                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
+                      modalidadContinuidad === "anual" || modalidadContinuidad === "recurrente_anual" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    📅 Cobro Anual desde Entrega
+                  </Button>
+                </div>
+              </div>
+
+              {modalidadContinuidad !== "incluido_ano1" && modalidadContinuidad !== "ano_1_incluido" && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-wider text-slate-300">
+                    Monto Recurrente ({modalidadContinuidad === "recurrente_mensual" ? "Mensual" : "Anual"}) ({moneda})
+                  </Label>
+                  <Input
+                    type="number"
+                    value={montoContinuidad}
+                    onChange={(e) => setMontoContinuidad && setMontoContinuidad(Number(e.target.value) || 0)}
+                    placeholder="Monto de mantención y hosting..."
+                    className="bg-muted/20 border-2 border-white/15 h-11 text-sm font-bold px-4 rounded-xl shadow-inner"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Detalle de Infraestructura y Casillas</Label>
+                <Textarea
+                  value={detalleContinuidad}
+                  onChange={(e) => setDetalleContinuidad && setDetalleContinuidad(e.target.value)}
+                  placeholder="Detalla hosting cPanel, casillas corporativas, SSL, copias de seguridad..."
+                  className="bg-muted/20 border-2 border-white/15 min-h-[70px] text-xs font-medium px-4 py-3 rounded-xl resize-none shadow-inner"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Enlace Público Comercial */}
+          {tokenPublico && (
+            <div className="p-4 rounded-2xl border-2 border-primary/30 bg-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary block">
+                  🌐 Enlace Público para el Cliente (/propuesta/[token])
+                </span>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  El cliente podrá revisar la propuesta y presionar &quot;Aceptar Propuesta y Coordinar Inicio&quot;.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const url = `${window.location.origin}/propuesta/${tokenPublico}`;
+                  navigator.clipboard.writeText(url);
+                  alert("¡Enlace público copiado al portapapeles!\n" + url);
+                }}
+                className="h-10 text-xs font-bold rounded-xl border-primary/40 text-primary bg-primary/20 hover:bg-primary/30 shrink-0"
+              >
+                Copiar Enlace Público
+              </Button>
+            </div>
+          )}
 
           {/* Condiciones */}
           <div className="space-y-8">

@@ -46,7 +46,26 @@ export const ClientesList = () => {
   };
 
   useEffect(() => {
-    load();
+    let isMounted = true;
+    if (user) {
+      getClientes()
+        .then((data) => {
+          if (isMounted) {
+            setClientes(data);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          if (isMounted) {
+            toast.error("Error al cargar clientes");
+            setLoading(false);
+          }
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const handleDelete = async (id: string) => {

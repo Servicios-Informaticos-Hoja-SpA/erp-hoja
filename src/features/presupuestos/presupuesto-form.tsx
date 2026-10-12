@@ -8,7 +8,9 @@ import {
   Servicio, 
   PresupuestoItem, 
   Presupuesto, 
-  ConfiguracionGlobal 
+  ConfiguracionGlobal,
+  PresupuestoEstado,
+  ModalidadContinuidad
 } from "@/lib/types";
 import { generatePDF } from "@/lib/pdf-utils";
 import { 
@@ -27,9 +29,9 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Save, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Save, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface PresupuestoFormProps {
@@ -58,6 +60,14 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   const [isSaving, setIsSaving] = useState(false);
   const [nextNumber, setNextNumber] = useState("XXXX");
   const [currentVersion, setCurrentVersion] = useState(1);
+  const [estado, setEstado] = useState<PresupuestoEstado>("borrador");
+  const [moneda, setMoneda] = useState<"CLP" | "UF">("CLP");
+  const [valorUF, setValorUF] = useState<number>(38000);
+  const [modalidadContinuidad, setModalidadContinuidad] = useState<ModalidadContinuidad>("incluido_ano1");
+  const [montoContinuidad, setMontoContinuidad] = useState<number>(0);
+  const [detalleContinuidad, setDetalleContinuidad] = useState<string>("Hosting Reseller cPanel, casillas de correo corporativas, SSL y copias de seguridad semanales.");
+  const [tokenPublico, setTokenPublico] = useState<string>("");
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -81,13 +91,25 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
           setParams(pres.parametros_personalizados);
           setNextNumber(pres.numero);
           setCurrentVersion(pres.version || 1);
+          if (pres.estado) setEstado(pres.estado);
+          if (pres.moneda) setMoneda(pres.moneda);
+          if (pres.valorUFReferencial) setValorUF(pres.valorUFReferencial);
+          if (pres.bloqueContinuidad) {
+            setModalidadContinuidad(pres.bloqueContinuidad.modalidad);
+            if (pres.bloqueContinuidad.montoRecurrente) setMontoContinuidad(pres.bloqueContinuidad.montoRecurrente);
+            if (pres.bloqueContinuidad.detalle) setDetalleContinuidad(pres.bloqueContinuidad.detalle);
+          }
+          if (pres.tokenPublico) setTokenPublico(pres.tokenPublico);
         } else {
           const num = await getNextPresupuestoNumber();
           setNextNumber(num);
+          setTokenPublico(crypto.randomUUID());
         }
       } catch (err) {
         console.error(err);
         toast.error("Error al cargar datos del formulario");
+      } finally {
+        setLoadingData(false);
       }
     };
     loadData();
@@ -108,10 +130,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof PresupuestoItem, value: any) => {
+  const updateItem = (index: number, field: keyof PresupuestoItem, value: string | number) => {
     const newItems = [...items];
     const item = { ...newItems[index], [field]: value };
-    item.total = item.precio * item.cantidad;
+    item.total = Number(item.precio || 0) * Number(item.cantidad || 1);
     newItems[index] = item;
     setItems(newItems);
   };
@@ -124,10 +146,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     setOptionalItems(optionalItems.filter((_, i) => i !== index));
   };
 
-  const updateOptionalItem = (index: number, field: keyof PresupuestoItem, value: any) => {
+  const updateOptionalItem = (index: number, field: keyof PresupuestoItem, value: string | number) => {
     const newItems = [...optionalItems];
     const item = { ...newItems[index], [field]: value };
-    item.total = item.precio * item.cantidad;
+    item.total = Number(item.precio || 0) * Number(item.cantidad || 1);
     newItems[index] = item;
     setOptionalItems(newItems);
   };
@@ -161,7 +183,25 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     setIsSaving(true);
     const cliente = clientes.find(c => c.id === selectedCliente);
 
-    const presupuesto: any = {
+    const bloqueDesarrollo = {
+      titulo: proyecto || "Desarrollo e Implementación",
+      monto: totalFinal,
+      anticipoPorcentaje: 50,
+      entregaPorcentaje: 50,
+      anticipoMonto: Math.round(totalFinal * 0.5),
+      entregaMonto: Math.round(totalFinal * 0.5),
+    };
+
+    const bloqueContinuidad = {
+      modalidad: modalidadContinuidad,
+      montoRecurrente: montoContinuidad,
+      monedaRecurrente: moneda,
+      detalle: detalleContinuidad,
+    };
+
+    const finalToken = tokenPublico || crypto.randomUUID();
+
+    const presupuesto: Partial<Presupuesto> = {
       id,
       numero: nextNumber,
       cliente_id: selectedCliente,
@@ -171,9 +211,15 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       items,
       servicios_opcionales: optionalItems,
       parametros_personalizados: params,
-      forma_pago: params["Forma Pago"] || "",
-      plazo_entrega: params["Plazo Entrega"] || "",
-      totales: { neto, iva, total: totalFinal }
+      forma_pago: params["Forma Pago"] || "50% Anticipo y 50% Contra entrega",
+      plazo_entrega: params["Plazo Entrega"] || "30 días",
+      totales: { neto, iva, total: totalFinal },
+      moneda,
+      valorUFReferencial: valorUF,
+      bloqueDesarrollo,
+      bloqueContinuidad,
+      tokenPublico: finalToken,
+      estado
     };
 
     try {
@@ -184,7 +230,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         toast.info("Generando PDF...");
         // Esperamos a que el template oculto esté listo
         await new Promise(resolve => setTimeout(resolve, 500));
-        const filename = `COT_${nextNumber}_${presupuesto.cliente_nombre.replace(/\s+/g, '_').toUpperCase()}`;
+        const clientSlug = (presupuesto.cliente_nombre || "CLIENTE").replace(/\s+/g, "_").toUpperCase();
+        const filename = `COT_${nextNumber}_${clientSlug}`;
         await generatePDF("presupuesto-document-print", filename, 'save');
       }
 
@@ -227,8 +274,48 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     servicios_opcionales: optionalItems,
     parametros_personalizados: params,
     totales: { neto, iva, total: totalFinal },
+    moneda,
+    valorUFReferencial: valorUF,
+    bloqueDesarrollo: {
+      titulo: proyecto || "Desarrollo e Implementación",
+      monto: totalFinal,
+      anticipoPorcentaje: 50,
+      entregaPorcentaje: 50,
+      anticipoMonto: Math.round(totalFinal * 0.5),
+      entregaMonto: Math.round(totalFinal * 0.5),
+    },
+    bloqueContinuidad: {
+      modalidad: modalidadContinuidad,
+      montoRecurrente: montoContinuidad,
+      monedaRecurrente: moneda,
+      detalle: detalleContinuidad,
+    },
+    tokenPublico: tokenPublico || "preview-token",
     version: id ? currentVersion + 1 : 1
   };
+
+  if (loadingData) {
+    return (
+      <div className="p-6 sm:p-8 max-w-5xl mx-auto space-y-6 animate-pulse">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64 rounded-xl bg-slate-800" />
+            <Skeleton className="h-4 w-40 rounded bg-slate-800/60" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-11 w-28 rounded-xl bg-slate-800" />
+            <Skeleton className="h-11 w-32 rounded-xl bg-slate-800" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-24 w-full rounded-2xl bg-slate-800/70" />
+          <Skeleton className="h-24 w-full rounded-2xl bg-slate-800/70" />
+        </div>
+        <Skeleton className="h-56 w-full rounded-2xl bg-slate-800/60" />
+        <Skeleton className="h-36 w-full rounded-2xl bg-slate-800/50" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full">
@@ -258,6 +345,19 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         onAddClient={handleAddClient}
         isSaving={isSaving}
         totales={{ neto, iva, total: totalFinal }}
+        estado={estado}
+        setEstado={setEstado}
+        moneda={moneda}
+        setMoneda={setMoneda}
+        valorUF={valorUF}
+        setValorUF={setValorUF}
+        modalidadContinuidad={modalidadContinuidad}
+        setModalidadContinuidad={setModalidadContinuidad}
+        montoContinuidad={montoContinuidad}
+        setMontoContinuidad={setMontoContinuidad}
+        detalleContinuidad={detalleContinuidad}
+        setDetalleContinuidad={setDetalleContinuidad}
+        tokenPublico={tokenPublico}
       />
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>

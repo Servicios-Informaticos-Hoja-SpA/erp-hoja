@@ -11,7 +11,6 @@ export const generatePDF = async (elementId: string, filename: string, action: '
   try {
     // 1. LIMPIEZA PREVENTIVA DEL ELEMENTO ORIGINAL
     // Eliminamos cualquier rastro de filtros o sombras que usen oklch antes de clonar
-    const originalStyles = element.style.cssText;
 
     const canvas = await html2canvas(element, {
       scale: 2,

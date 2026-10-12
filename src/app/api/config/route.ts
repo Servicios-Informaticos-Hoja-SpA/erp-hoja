@@ -15,8 +15,9 @@ export async function GET() {
       return NextResponse.json(docSnap.data());
     }
     return NextResponse.json({ error: "Configuración no encontrada" }, { status: 404 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -29,7 +30,8 @@ export async function POST(request: Request) {
     const docRef = doc(db, "configuracion_global", "hoja_dev_config");
     await setDoc(docRef, body);
     return NextResponse.json({ message: "Configuración actualizada" });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
