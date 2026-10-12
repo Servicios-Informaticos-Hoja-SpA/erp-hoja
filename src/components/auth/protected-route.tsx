@@ -12,7 +12,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user && pathname !== "/login") {
-      router.push("/login");
+      // Limpiar cookie de sesión en el servidor para evitar bucles entre / y /login
+      fetch("/api/auth/logout", { method: "POST" })
+        .catch(() => {})
+        .finally(() => {
+          router.replace("/login?reauth=1");
+        });
+    } else if (!loading && user && pathname === "/login") {
+      router.replace("/");
     }
   }, [user, loading, router, pathname]);
 

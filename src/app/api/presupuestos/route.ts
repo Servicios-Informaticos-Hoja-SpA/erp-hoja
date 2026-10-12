@@ -15,57 +15,71 @@ import { verifySession } from "@/lib/auth-server";
 import { z } from "zod";
 
 const presupuestoItemSchema = z.object({
-  descripcion: z.string(),
-  precio: z.number(),
-  cantidad: z.number(),
-  total: z.number(),
+  id: z.string().optional(),
+  descripcion: z.string().default(""),
+  precio: z.coerce.number().default(0),
+  cantidad: z.coerce.number().default(1),
+  total: z.coerce.number().default(0),
   frecuencia: z.string().optional(),
 });
 
 const presupuestoSchema = z.object({
-  numero: z.string(),
-  cliente_id: z.string(),
-  cliente_nombre: z.string(),
-  nombre_proyecto: z.string().optional(),
-  descripcion_proyecto: z.string().optional(),
-  items: z.array(presupuestoItemSchema),
-  servicios_opcionales: z.array(presupuestoItemSchema).optional(),
-  parametros_personalizados: z.record(z.string(), z.string()).optional(),
+  numero: z.string().default("0001"),
+  cliente_id: z.string().min(1, "El cliente es obligatorio"),
+  cliente_nombre: z.string().default(""),
+  nombre_proyecto: z.string().optional().or(z.literal("")),
+  descripcion_proyecto: z.string().optional().or(z.literal("")),
+  items: z.array(presupuestoItemSchema).default([]),
+  servicios_opcionales: z.array(presupuestoItemSchema).optional().default([]),
+  parametros_personalizados: z.record(z.string(), z.any()).optional(),
   forma_pago: z.string().optional(),
   plazo_entrega: z.string().optional(),
   totales: z.object({
-    neto: z.number(),
-    iva: z.number(),
-    total: z.number(),
+    neto: z.coerce.number().default(0),
+    iva: z.coerce.number().default(0),
+    total: z.coerce.number().default(0),
   }).optional(),
-  moneda: z.enum(["CLP", "UF"]).optional(),
-  valorUFReferencial: z.number().optional(),
+  moneda: z.enum(["CLP", "UF"]).optional().default("CLP"),
+  valorUFReferencial: z.coerce.number().optional(),
   bloqueDesarrollo: z.object({
     titulo: z.string().optional(),
-    monto: z.number(),
-    anticipoPorcentaje: z.number().default(50),
-    entregaPorcentaje: z.number().default(50),
-    anticipoMonto: z.number(),
-    entregaMonto: z.number(),
+    monto: z.coerce.number().optional().default(0),
+    anticipoPorcentaje: z.coerce.number().default(50),
+    entregaPorcentaje: z.coerce.number().default(50),
+    anticipoMonto: z.coerce.number().optional(),
+    entregaMonto: z.coerce.number().optional(),
+    montoAnticipo: z.coerce.number().optional(),
+    montoEntrega: z.coerce.number().optional(),
   }).optional(),
   bloqueContinuidad: z.object({
-    modalidad: z.enum(["ano_1_incluido", "recurrente_mensual", "recurrente_anual"]),
-    montoRecurrente: z.number().optional(),
+    modalidad: z.enum([
+      "ano_1_incluido",
+      "recurrente_mensual",
+      "recurrente_anual",
+      "incluido_ano1",
+      "mensual",
+      "anual"
+    ]).optional().default("ano_1_incluido"),
+    monto: z.coerce.number().optional(),
+    montoRecurrente: z.coerce.number().optional(),
     monedaRecurrente: z.enum(["CLP", "UF"]).optional(),
     detalle: z.string().optional(),
   }).optional(),
   tokenPublico: z.string().optional(),
   propuestaAceptadaEn: z.string().optional(),
   propuestaAceptadaPor: z.string().optional(),
-  version: z.number().optional(),
-  estado: z.enum(["borrador", "enviado", "emitido", "en_negociacion", "aprobado", "rechazado", "vencido"]).optional(),
+  version: z.coerce.number().optional(),
+  estado: z.enum(["borrador", "enviado", "emitido", "en_negociacion", "aprobado", "rechazado", "vencido"]).optional().default("borrador"),
   proyecto_id: z.string().optional(),
   fechaEnvio: z.string().optional(),
   ultimoSeguimiento: z.any().optional(),
   alertaSilenciada: z.boolean().optional(),
   motivoRechazo: z.string().optional(),
   historialSeguimientos: z.array(z.any()).optional(),
-});
+  fecha: z.any().optional(),
+  createdAt: z.any().optional(),
+  updatedAt: z.any().optional(),
+}).passthrough();
 
 export async function GET(request: Request) {
   if (!await verifySession()) {
@@ -102,10 +116,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { id, ...rest } = body;
+    const isEdit = typeof id === "string" && id.trim().length > 0;
 
     // Validación con Zod: si es creación requiere esquema completo, si es edición permite parcial
-    const result = id ? presupuestoSchema.partial().safeParse(rest) : presupuestoSchema.safeParse(rest);
+    const result = isEdit ? presupuestoSchema.partial().safeParse(rest) : presupuestoSchema.safeParse(rest);
     if (!result.success) {
+      console.error("Zod Validation Error in Presupuestos:", JSON.stringify(result.error.format(), null, 2));
       return NextResponse.json({ 
         error: "Datos de presupuesto inválidos", 
         details: result.error.format() 
@@ -114,7 +130,7 @@ export async function POST(request: Request) {
 
     const data = result.data;
 
-    if (id) {
+    if (isEdit) {
       const docRef = doc(db, "presupuestos", id);
       const currentSnap = await getDoc(docRef);
       

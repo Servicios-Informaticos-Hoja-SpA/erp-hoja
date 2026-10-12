@@ -525,7 +525,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
               {modalidadContinuidad !== "incluido_ano1" && modalidadContinuidad !== "ano_1_incluido" && (
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-wider text-slate-300">
-                    Monto Recurrente ({modalidadContinuidad === "recurrente_mensual" ? "Mensual" : "Anual"}) ({moneda})
+                    Monto Recurrente ({modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "Mensual" : "Anual"}) ({moneda})
                   </Label>
                   <Input
                     type="number"

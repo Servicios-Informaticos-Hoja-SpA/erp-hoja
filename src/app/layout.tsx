@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -14,11 +14,26 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#020617",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "Hoja SpA - Sistema Operativo y Financiero",
   description: "Plataforma de gestión de clientes, proyectos, presupuestos y control financiero de Servicios Informáticos Hoja SpA",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Hoja SpA",
+  },
   icons: {
     icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon.png", sizes: "192x192", type: "image/png" },
       { url: "/favicon.ico" }
     ],

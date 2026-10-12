@@ -319,11 +319,15 @@ export default function PropuestaPublicaPage() {
                 </div>
               </div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                {modalidadContinuidad === "incluido_ano1" ? "Año 1 Incluido" : modalidadContinuidad === "mensual" ? "Cobro Mensual" : "Cobro Anual"}
+                {modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido"
+                  ? "Año 1 Incluido"
+                  : modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual"
+                    ? "Cobro Mensual"
+                    : "Cobro Anual"}
               </span>
             </div>
 
-            {modalidadContinuidad === "incluido_ano1" ? (
+            {modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido" ? (
               <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-2">
                 <div className="flex items-center gap-2 text-cyan-300 font-black text-sm">
                   <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -342,7 +346,7 @@ export default function PropuestaPublicaPage() {
                 <p className="text-sm font-black text-white">
                   Monto Recurrente:{" "}
                   <span className="text-cyan-400 font-mono text-base">
-                    {formatMoney(presupuesto.bloqueContinuidad?.monto || 0)} / {modalidadContinuidad === "mensual" ? "mes" : "año"}
+                    {formatMoney(presupuesto.bloqueContinuidad?.montoRecurrente ?? presupuesto.bloqueContinuidad?.monto ?? 0)} / {modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "mes" : "año"}
                   </span>
                 </p>
                 <p className="text-xs text-slate-300 leading-relaxed">

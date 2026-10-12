@@ -26,7 +26,28 @@ export function proxy(request: NextRequest) {
   }
 
   const session = request.cookies.get('session_active');
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Permitir explícitamente manifest y assets estáticos si llegaran al proxy
+  if (
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/manifest.json' ||
+    pathname.startsWith('/icon') ||
+    pathname.startsWith('/apple-icon') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.svg')
+  ) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // Si se solicita login con parámetro de reautenticación o reset,
+  // permitimos el acceso y limpiamos la cookie obsoleta para evitar bucles de redirección.
+  if (pathname === '/login' && searchParams.has('reauth')) {
+    const res = NextResponse.next();
+    res.cookies.delete('session_active');
+    return withSecurityHeaders(res);
+  }
 
   // 1. Si el usuario NO tiene sesión y no está en el login, redirigir a login
   // Nota: Permitimos acceso a /api/auth/login y /api/auth/logout para gestión de sesión
@@ -37,7 +58,7 @@ export function proxy(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
   }
 
-  // 2. Si el usuario YA tiene sesión e intenta ir al login, redirigir al dashboard
+  // 2. Si el usuario YA tiene sesión e intenta ir al login, redirigir al dashboard solo si no hay reauth
   if (session && pathname === '/login') {
     return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
   }
@@ -49,12 +70,11 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - logo.png, logo_hoja.png (public assets)
+     * Match all request paths except for:
+     * - _next/static, _next/image
+     * - favicon.ico, manifest.webmanifest, manifest.json
+     * - static image formats (.svg, .png, .jpg, .jpeg, .webp, .ico)
      */
-    '/((?!_next/static|_next/image|favicon.ico|logo.png|logo_hoja.png).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|webp|ico|webmanifest)$).*)',
   ],
 };

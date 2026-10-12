@@ -86,9 +86,9 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
           setSelectedCliente(pres.cliente_id);
           setProyecto(pres.nombre_proyecto || pres.descripcion_proyecto || "");
           setDescripcionProyecto(pres.nombre_proyecto ? (pres.descripcion_proyecto || "") : "");
-          setItems(pres.items);
+          setItems(pres.items || []);
           setOptionalItems(pres.servicios_opcionales || []);
-          setParams(pres.parametros_personalizados);
+          setParams(pres.parametros_personalizados || {});
           setNextNumber(pres.numero);
           setCurrentVersion(pres.version || 1);
           if (pres.estado) setEstado(pres.estado);
@@ -96,7 +96,11 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
           if (pres.valorUFReferencial) setValorUF(pres.valorUFReferencial);
           if (pres.bloqueContinuidad) {
             setModalidadContinuidad(pres.bloqueContinuidad.modalidad);
-            if (pres.bloqueContinuidad.montoRecurrente) setMontoContinuidad(pres.bloqueContinuidad.montoRecurrente);
+            if (pres.bloqueContinuidad.montoRecurrente !== undefined) {
+              setMontoContinuidad(pres.bloqueContinuidad.montoRecurrente);
+            } else if (pres.bloqueContinuidad.monto !== undefined) {
+              setMontoContinuidad(pres.bloqueContinuidad.monto);
+            }
             if (pres.bloqueContinuidad.detalle) setDetalleContinuidad(pres.bloqueContinuidad.detalle);
           }
           if (pres.tokenPublico) setTokenPublico(pres.tokenPublico);
@@ -116,7 +120,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   }, [id]);
 
   const neto = useMemo(() => {
-    return items.reduce((acc, curr) => acc + curr.total, 0);
+    return items.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
   }, [items]);
 
   const iva = useMemo(() => Math.round(neto * 0.19), [neto]);
@@ -132,7 +136,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
   const updateItem = (index: number, field: keyof PresupuestoItem, value: string | number) => {
     const newItems = [...items];
-    const item = { ...newItems[index], [field]: value };
+    const cleanVal = (field === "precio" || field === "cantidad")
+      ? (typeof value === "number" && isNaN(value) ? 0 : Number(value) || 0)
+      : value;
+    const item = { ...newItems[index], [field]: cleanVal };
     item.total = Number(item.precio || 0) * Number(item.cantidad || 1);
     newItems[index] = item;
     setItems(newItems);
@@ -148,7 +155,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
   const updateOptionalItem = (index: number, field: keyof PresupuestoItem, value: string | number) => {
     const newItems = [...optionalItems];
-    const item = { ...newItems[index], [field]: value };
+    const cleanVal = (field === "precio" || field === "cantidad")
+      ? (typeof value === "number" && isNaN(value) ? 0 : Number(value) || 0)
+      : value;
+    const item = { ...newItems[index], [field]: cleanVal };
     item.total = Number(item.precio || 0) * Number(item.cantidad || 1);
     newItems[index] = item;
     setOptionalItems(newItems);
@@ -183,6 +193,22 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
     setIsSaving(true);
     const cliente = clientes.find(c => c.id === selectedCliente);
 
+    const sanitizedItems = items.map(item => ({
+      ...item,
+      descripcion: item.descripcion || "Item sin descripción",
+      precio: Number(item.precio) || 0,
+      cantidad: Number(item.cantidad) || 1,
+      total: (Number(item.precio) || 0) * (Number(item.cantidad) || 1),
+    }));
+
+    const sanitizedOptionalItems = optionalItems.map(item => ({
+      ...item,
+      descripcion: item.descripcion || "Opcional",
+      precio: Number(item.precio) || 0,
+      cantidad: Number(item.cantidad) || 1,
+      total: (Number(item.precio) || 0) * (Number(item.cantidad) || 1),
+    }));
+
     const bloqueDesarrollo = {
       titulo: proyecto || "Desarrollo e Implementación",
       monto: totalFinal,
@@ -190,11 +216,14 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       entregaPorcentaje: 50,
       anticipoMonto: Math.round(totalFinal * 0.5),
       entregaMonto: Math.round(totalFinal * 0.5),
+      montoAnticipo: Math.round(totalFinal * 0.5),
+      montoEntrega: Math.round(totalFinal * 0.5),
     };
 
     const bloqueContinuidad = {
       modalidad: modalidadContinuidad,
-      montoRecurrente: montoContinuidad,
+      monto: Number(montoContinuidad) || 0,
+      montoRecurrente: Number(montoContinuidad) || 0,
       monedaRecurrente: moneda,
       detalle: detalleContinuidad,
     };
@@ -208,8 +237,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       cliente_nombre: cliente?.nombre || "",
       nombre_proyecto: proyecto,
       descripcion_proyecto: descripcionProyecto,
-      items,
-      servicios_opcionales: optionalItems,
+      items: sanitizedItems,
+      servicios_opcionales: sanitizedOptionalItems,
       parametros_personalizados: params,
       forma_pago: params["Forma Pago"] || "50% Anticipo y 50% Contra entrega",
       plazo_entrega: params["Plazo Entrega"] || "30 días",
@@ -242,9 +271,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
           router.push("/presupuestos");
         }
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al procesar la solicitud.");
+    } catch (err: unknown) {
+      console.error("Error al guardar presupuesto:", err);
+      const msg = err instanceof Error ? err.message : "Error al procesar la solicitud.";
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }

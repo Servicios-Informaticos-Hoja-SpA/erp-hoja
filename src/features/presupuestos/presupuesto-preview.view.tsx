@@ -206,10 +206,14 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ id, data
                 BLOQUE 2: CONTINUIDAD, HOSTING Y SOPORTE
               </h3>
               <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-200 text-indigo-900" style={{ backgroundColor: '#c7d2fe', color: '#1e1b4b' }}>
-                {modalidadContinuidad === 'incluido_ano1' ? 'Año 1 Incluido' : modalidadContinuidad === 'mensual' ? 'Cobro Mensual' : 'Cobro Anual'}
+                {modalidadContinuidad === 'incluido_ano1' || modalidadContinuidad === 'ano_1_incluido'
+                  ? 'Año 1 Incluido'
+                  : modalidadContinuidad === 'mensual' || modalidadContinuidad === 'recurrente_mensual'
+                    ? 'Cobro Mensual'
+                    : 'Cobro Anual'}
               </span>
             </div>
-            {modalidadContinuidad === 'incluido_ano1' ? (
+            {modalidadContinuidad === 'incluido_ano1' || modalidadContinuidad === 'ano_1_incluido' ? (
               <div className="p-3 bg-white rounded-lg border border-indigo-100" style={{ backgroundColor: '#ffffff', borderColor: '#e0e7ff' }}>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-black text-slate-800" style={{ color: '#1e293b' }}>
@@ -228,7 +232,7 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({ id, data
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-black text-slate-800" style={{ color: '#1e293b' }}>
                     Monto Recurrente: <span className="text-indigo-700 font-black" style={{ color: '#4338ca' }}>
-                      {formatCurrencyShort(data.bloqueContinuidad?.monto || 0)} / {modalidadContinuidad === 'mensual' ? 'mes' : 'año'}
+                      {formatCurrencyShort(data.bloqueContinuidad?.montoRecurrente ?? data.bloqueContinuidad?.monto ?? 0)} / {modalidadContinuidad === 'mensual' || modalidadContinuidad === 'recurrente_mensual' ? 'mes' : 'año'}
                     </span>
                   </p>
                 </div>
