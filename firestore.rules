@@ -53,8 +53,12 @@ service cloud.firestore {
       }
     }
 
-    // 6. Flujo de Caja
+    // 6. Flujo de Caja y Declaraciones Tributarias F29
     match /flujo_caja/{eventoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /f29_declaraciones/{docId} {
       allow read, write: if isAuthenticated();
     }
 

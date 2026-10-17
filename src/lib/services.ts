@@ -12,37 +12,149 @@ import {
   UserStreak,
   ProspectingSession,
   Prospect,
-  ProspectEstado
+  ProspectEstado,
+  TicketSoporte,
+  DeclaracionF29
 } from "./types";
 
-const fetcher = async (url: string, options?: RequestInit) => {
-  const res = await fetch(url, options);
-  
-  const contentType = res.headers.get("content-type");
-  const isJson = contentType && contentType.includes("application/json");
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
 
-  if (!res.ok) {
-    if (isJson) {
-      const error = await res.json();
-      throw new Error(error.error || `Error ${res.status}: ${res.statusText}`);
+// Caché en memoria del cliente para evitar peticiones de red innecesarias y hacer la navegación instantánea
+const clientMemoryCache = new Map<string, CacheEntry<any>>();
+
+// Deduplicación de peticiones idénticas en vuelo (evita thundering herd)
+const inFlightRequests = new Map<string, Promise<any>>();
+
+// TTL por defecto: 45 segundos (ideal para ERP con navegación rápida entre módulos)
+const DEFAULT_TTL_MS = 45 * 1000;
+
+export const clearCache = (pattern?: string) => {
+  if (!pattern) {
+    clientMemoryCache.clear();
+    return;
+  }
+  for (const key of Array.from(clientMemoryCache.keys())) {
+    if (key.includes(pattern)) {
+      clientMemoryCache.delete(key);
     }
-    throw new Error(`Error ${res.status}: ${res.statusText}`);
+  }
+};
+
+const invalidateRelatedCaches = (url: string) => {
+  if (url.includes("/api/clientes")) {
+    clearCache("/api/clientes");
+    clearCache("/api/dashboard");
+  } else if (url.includes("/api/proyectos")) {
+    clearCache("/api/proyectos");
+    clearCache("/api/dashboard");
+    clearCache("/api/flujo-caja");
+  } else if (url.includes("/api/presupuestos")) {
+    clearCache("/api/presupuestos");
+    clearCache("/api/dashboard");
+    clearCache("/api/proyectos");
+  } else if (url.includes("/api/subscriptions")) {
+    clearCache("/api/subscriptions");
+    clearCache("/api/dashboard");
+    clearCache("/api/flujo-caja");
+    clearCache("/api/alertas");
+  } else if (url.includes("/api/flujo-caja")) {
+    clearCache("/api/flujo-caja");
+    clearCache("/api/dashboard");
+  } else if (url.includes("/api/expenses")) {
+    clearCache("/api/expenses");
+    clearCache("/api/dashboard");
+    clearCache("/api/flujo-caja");
+  } else if (url.includes("/api/config")) {
+    clearCache("/api/config");
+  } else if (url.includes("/api/prospeccion")) {
+    clearCache("/api/prospeccion");
+    clearCache("/api/dashboard");
+  }
+};
+
+export interface FetcherOptions extends RequestInit {
+  ttl?: number;
+  forceRefresh?: boolean;
+}
+
+const fetcher = async (url: string, options?: FetcherOptions) => {
+  const method = (options?.method || "GET").toUpperCase();
+  const isGet = method === "GET";
+  const forceRefresh = options?.forceRefresh === true;
+  const ttl = options?.ttl ?? DEFAULT_TTL_MS;
+
+  // Si es consulta GET y no estamos forzando recarga, usar caché
+  if (isGet && !forceRefresh) {
+    const cached = clientMemoryCache.get(url);
+    if (cached && Date.now() - cached.timestamp < ttl) {
+      return cached.data;
+    }
+
+    // Si ya existe una petición idéntica en vuelo, reutilizar la misma promesa
+    const existingPromise = inFlightRequests.get(url);
+    if (existingPromise) {
+      return existingPromise;
+    }
   }
 
-  if (!isJson) {
-    return null;
+  const executeFetch = async () => {
+    try {
+      const res = await fetch(url, options);
+      
+      const contentType = res.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+
+      if (!res.ok) {
+        if (isJson) {
+          const error = await res.json();
+          throw new Error(error.error || `Error ${res.status}: ${res.statusText}`);
+        }
+        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      }
+
+      if (!isJson) {
+        return null;
+      }
+
+      const data = await res.json();
+
+      if (isGet) {
+        clientMemoryCache.set(url, {
+          data,
+          timestamp: Date.now(),
+        });
+      } else {
+        // En mutaciones (POST, PUT, DELETE, PATCH), limpiar cachés relacionados
+        invalidateRelatedCaches(url);
+      }
+
+      return data;
+    } finally {
+      if (isGet) {
+        inFlightRequests.delete(url);
+      }
+    }
+  };
+
+  if (isGet && !forceRefresh) {
+    const promise = executeFetch();
+    inFlightRequests.set(url, promise);
+    return promise;
   }
 
-  return res.json();
+  return executeFetch();
 };
 
 // --- CLIENTES ---
-export const getClientes = async (): Promise<Cliente[]> => {
-  return fetcher("/api/clientes");
+export const getClientes = async (forceRefresh: boolean = false): Promise<Cliente[]> => {
+  return fetcher("/api/clientes", { forceRefresh });
 };
 
-export const getClienteById = async (id: string): Promise<Cliente> => {
-  return fetcher(`/api/clientes/${id}`);
+export const getClienteById = async (id: string, forceRefresh: boolean = false): Promise<Cliente> => {
+  return fetcher(`/api/clientes/${id}`, { forceRefresh });
 };
 
 export const saveCliente = async (cliente: Partial<Cliente>) => {
@@ -61,21 +173,73 @@ export const updateCliente = async (id: string, cliente: Partial<Cliente>) => {
   });
 };
 
+export const inhabilitarCliente = async (id: string) => {
+  return updateCliente(id, { 
+    activo: false, 
+    estado: "inactivo", 
+    inhabilitadoAt: new Date().toISOString() 
+  });
+};
+
+export const reactivarCliente = async (id: string, tipo: "prospecto" | "cliente" = "cliente") => {
+  return updateCliente(id, { 
+    activo: true, 
+    estado: tipo === "prospecto" ? "prospecto" : "activo" 
+  });
+};
+
 export const deleteCliente = async (id: string) => {
   return fetcher(`/api/clientes/${id}`, {
     method: "DELETE",
   });
 };
 
+export const getPresupuestosByCliente = async (clienteId: string, clienteNombre?: string): Promise<Presupuesto[]> => {
+  const all = await getPresupuestos();
+  const cNameLower = (clienteNombre || "").trim().toLowerCase();
+  return all.filter((p) => {
+    if (p.cliente_id && p.cliente_id === clienteId) return true;
+    if (cNameLower && p.cliente_nombre && p.cliente_nombre.trim().toLowerCase() === cNameLower) return true;
+    return false;
+  });
+};
+
+// --- TICKETS DE SOPORTE (SCOPED POR CLIENTE) ---
+export const getTicketsByCliente = async (clienteId: string): Promise<TicketSoporte[]> => {
+  return fetcher(`/api/clientes/${clienteId}/tickets`);
+};
+
+export const saveTicket = async (clienteId: string, ticket: Partial<TicketSoporte>): Promise<TicketSoporte> => {
+  return fetcher(`/api/clientes/${clienteId}/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ticket),
+  });
+};
+
+export const updateTicket = async (clienteId: string, ticketId: string, ticket: Partial<TicketSoporte>) => {
+  return fetcher(`/api/clientes/${clienteId}/tickets/${ticketId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ticket),
+  });
+};
+
+export const deleteTicket = async (clienteId: string, ticketId: string) => {
+  return fetcher(`/api/clientes/${clienteId}/tickets/${ticketId}`, {
+    method: "DELETE",
+  });
+};
+
 // --- CATALOGO ---
-export const getCatalogo = async (): Promise<Servicio[]> => {
-  return fetcher("/api/catalogo");
+export const getCatalogo = async (forceRefresh: boolean = false): Promise<Servicio[]> => {
+  return fetcher("/api/catalogo", { forceRefresh, ttl: 120000 });
 };
 
 // --- CONFIGURACION GLOBAL ---
-export const getConfig = async (): Promise<ConfiguracionGlobal | null> => {
+export const getConfig = async (forceRefresh: boolean = false): Promise<ConfiguracionGlobal | null> => {
   try {
-    return await fetcher("/api/config");
+    return await fetcher("/api/config", { forceRefresh, ttl: 300000 });
   } catch {
     return null;
   }
@@ -90,12 +254,12 @@ export const updateConfig = async (config: ConfiguracionGlobal) => {
 };
 
 // --- PRESUPUESTOS ---
-export const getPresupuestos = async (): Promise<Presupuesto[]> => {
-  return fetcher("/api/presupuestos");
+export const getPresupuestos = async (forceRefresh: boolean = false): Promise<Presupuesto[]> => {
+  return fetcher("/api/presupuestos", { forceRefresh });
 };
 
-export const getPresupuestoById = async (id: string): Promise<Presupuesto> => {
-  return fetcher(`/api/presupuestos?id=${id}`);
+export const getPresupuestoById = async (id: string, forceRefresh: boolean = false): Promise<Presupuesto> => {
+  return fetcher(`/api/presupuestos?id=${id}`, { forceRefresh });
 };
 
 export const savePresupuesto = async (presupuesto: Partial<Presupuesto>) => {
@@ -129,12 +293,12 @@ export const getNextPresupuestoNumber = async (): Promise<string> => {
 };
 
 // --- PROYECTOS ---
-export const getProyectos = async (): Promise<Proyecto[]> => {
-  return fetcher("/api/proyectos");
+export const getProyectos = async (forceRefresh: boolean = false): Promise<Proyecto[]> => {
+  return fetcher("/api/proyectos", { forceRefresh });
 };
 
-export const getProyectoById = async (id: string): Promise<Proyecto> => {
-  return fetcher(`/api/proyectos/${id}`);
+export const getProyectoById = async (id: string, forceRefresh: boolean = false): Promise<Proyecto> => {
+  return fetcher(`/api/proyectos/${id}`, { forceRefresh });
 };
 
 export const saveProyecto = async (proyecto: Partial<Proyecto>) => {
@@ -160,8 +324,8 @@ export const deleteProyecto = async (id: string) => {
 };
 
 // --- DOCUMENTOS OPERATIVOS ---
-export const getDocumentosProyecto = async (proyectoId: string): Promise<DocumentoOperativo[]> => {
-  return fetcher(`/api/proyectos/${proyectoId}/documentos`);
+export const getDocumentosProyecto = async (proyectoId: string, forceRefresh: boolean = false): Promise<DocumentoOperativo[]> => {
+  return fetcher(`/api/proyectos/${proyectoId}/documentos`, { forceRefresh });
 };
 
 export const saveDocumentoOperativo = async (proyectoId: string, doc: Partial<DocumentoOperativo>) => {
@@ -173,8 +337,8 @@ export const saveDocumentoOperativo = async (proyectoId: string, doc: Partial<Do
 };
 
 // --- FLUJO DE CAJA ---
-export const getEventosFinancieros = async (): Promise<EventoFinanciero[]> => {
-  return fetcher("/api/flujo-caja");
+export const getEventosFinancieros = async (forceRefresh: boolean = false): Promise<EventoFinanciero[]> => {
+  return fetcher("/api/flujo-caja", { forceRefresh });
 };
 
 export const saveEventoFinanciero = async (evento: Partial<EventoFinanciero>) => {
@@ -193,13 +357,44 @@ export const updateEventoFinanciero = async (id: string, evento: Partial<EventoF
   });
 };
 
-// --- SUSCRIPCIONES Y SERVICIOS RECURRENTES ---
-export const getSubscriptions = async (): Promise<Subscription[]> => {
-  return fetcher("/api/subscriptions");
+export const deleteEventoFinanciero = async (id: string) => {
+  return fetcher(`/api/flujo-caja/${id}`, {
+    method: "DELETE",
+  });
 };
 
-export const getSubscriptionById = async (id: string): Promise<Subscription> => {
-  return fetcher(`/api/subscriptions/${id}`);
+// --- DECLARACIONES TRIBUTARIAS F29 (SII) ---
+export const getDeclaracionesF29 = async (forceRefresh: boolean = false): Promise<DeclaracionF29[]> => {
+  return fetcher("/api/flujo-caja/f29", { forceRefresh });
+};
+
+export const marcarF29Declarado = async (data: {
+  periodo: string;
+  montoPagado?: number;
+  sinMovimiento?: boolean;
+  folioSII?: string;
+  notas?: string;
+}): Promise<{ success: boolean; declaracion: DeclaracionF29 }> => {
+  return fetcher("/api/flujo-caja/f29", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+};
+
+export const desmarcarF29Declarado = async (periodo: string) => {
+  return fetcher(`/api/flujo-caja/f29?periodo=${periodo}`, {
+    method: "DELETE",
+  });
+};
+
+// --- SUSCRIPCIONES Y SERVICIOS RECURRENTES ---
+export const getSubscriptions = async (forceRefresh: boolean = false): Promise<Subscription[]> => {
+  return fetcher("/api/subscriptions", { forceRefresh });
+};
+
+export const getSubscriptionById = async (id: string, forceRefresh: boolean = false): Promise<Subscription> => {
+  return fetcher(`/api/subscriptions/${id}`, { forceRefresh });
 };
 
 export const saveSubscription = async (sub: Partial<Subscription>) => {
@@ -226,19 +421,24 @@ export const deleteSubscription = async (id: string) => {
 
 export const createSubscription = saveSubscription;
 
-export const renewSubscription = async (id: string, periodo: "mensual" | "anual" = "anual") => {
+export const renewSubscription = async (
+  id: string, 
+  payload: string | { periodo?: "mensual" | "anual" | "semestral" | "trimestral"; monto?: number; notas?: string } = "anual"
+) => {
+  const body = typeof payload === "string" ? { periodo: payload } : payload;
   return fetcher(`/api/subscriptions/${id}/renovar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ periodo }),
+    body: JSON.stringify(body),
   });
 };
 
-export const renovarSubscription = (id: string) => renewSubscription(id, "anual");
+export const renovarSubscription = (id: string, payload?: { periodo?: "mensual" | "anual" | "semestral" | "trimestral"; monto?: number; notas?: string }) => 
+  renewSubscription(id, payload || "anual");
 
 // --- GASTOS OPERATIVOS / COSTOS FIJOS ---
-export const getGastosOperativos = async (): Promise<GastoOperativo[]> => {
-  return fetcher("/api/expenses");
+export const getGastosOperativos = async (forceRefresh: boolean = false): Promise<GastoOperativo[]> => {
+  return fetcher("/api/expenses", { forceRefresh });
 };
 
 export const saveGastoOperativo = async (gasto: Partial<GastoOperativo>) => {
@@ -300,15 +500,35 @@ export interface DashboardMetricsData {
     margen: number;
     porcentaje: number;
   };
-  alertasDelDia: AlertaOperativa[];
+  alertasDelDia?: AlertaOperativa[];
+
+  // Nuevas secciones compactas del Dashboard
+  contactosSinContactar?: Cliente[];
+  totalContactosSinContactar?: number;
+  
+  presupuestosEnNegociacion?: Presupuesto[];
+  totalPresupuestosEnNegociacion?: number;
+  montoTotalNegociacion?: number;
+
+  proyectosEnCurso?: Proyecto[];
+  totalProyectosEnCurso?: number;
+
+  saldoCajaActual?: number;
+  serviciosRecurrentesPorVencer?: (Subscription & {
+    diasRestantes: number;
+    costoCLP: number;
+    cubiertoConFlujo: boolean;
+    diferenciaFlujoCLP: number;
+  })[];
 }
 
-export const getDashboardMetrics = async (): Promise<DashboardMetricsData> => {
-  return fetcher("/api/dashboard/metrics");
+export const getDashboardMetrics = async (forceRefresh: boolean = false): Promise<DashboardMetricsData> => {
+  const url = forceRefresh ? "/api/dashboard/metrics?nocache=true" : "/api/dashboard/metrics";
+  return fetcher(url, { forceRefresh });
 };
 
-export const getAlertasGlobales = async (): Promise<AlertaOperativa[]> => {
-  return fetcher("/api/alertas");
+export const getAlertasGlobales = async (forceRefresh: boolean = false): Promise<AlertaOperativa[]> => {
+  return fetcher("/api/alertas", { forceRefresh });
 };
 
 // --- SESIONES DE PROSPECCIÓN GUIADA ---
@@ -415,15 +635,22 @@ export const finishProspectingSession = async (
   });
 };
 
-export const updateProspectEstado = async (
+export const updateProspect = async (
   id: string,
-  estado: ProspectEstado
+  data: { estado?: ProspectEstado; notas?: string }
 ): Promise<{ prospect: Prospect }> => {
   return fetcher(`/api/prospeccion/prospect/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ estado }),
+    body: JSON.stringify(data),
   });
+};
+
+export const updateProspectEstado = async (
+  id: string,
+  estado: ProspectEstado
+): Promise<{ prospect: Prospect }> => {
+  return updateProspect(id, { estado });
 };
 
 

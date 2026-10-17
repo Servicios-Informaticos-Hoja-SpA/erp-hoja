@@ -34,6 +34,7 @@ const presupuestoSchema = z.object({
   parametros_personalizados: z.record(z.string(), z.any()).optional(),
   forma_pago: z.string().optional(),
   plazo_entrega: z.string().optional(),
+  condiciones_comerciales: z.string().optional(),
   totales: z.object({
     neto: z.coerce.number().default(0),
     iva: z.coerce.number().default(0),

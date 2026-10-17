@@ -2,6 +2,9 @@
 export type FechaRegistro = string | { seconds: number; nanoseconds: number };
 
 // --- CLIENTES & CRM OPERATIVO ---
+export type TipoRegistro = "prospecto" | "cliente";
+export type SubEstadoProspecto = "sin_contacto" | "contactado";
+
 export type ClienteEstado = 
   | "prospecto" 
   | "activo" 
@@ -70,6 +73,133 @@ export interface ClienteNota {
   fecha: string; // ISO string
   texto: string;
   tipo?: "reunion" | "llamada" | "whatsapp" | "acuerdo";
+  recordatorio?: string; // ISO date-time opcional asociado a la nota
+}
+
+// --- MATRIZ OPERATIVA (SERVICIOS Y PRODUCTOS CONTRATADOS) ---
+export interface ServicioAsociado {
+  id: string;
+  proveedor: string; // ej. Cloudflare, AWS, Supabase, Sendgrid
+  nombre: string;
+  descripcion?: string;
+  credencialesOConfig?: string;
+}
+
+export interface ItemPaginaWeb {
+  id: string;
+  proyectoId?: string; // Enlace a proyecto (opcional)
+  url: string;
+  tipoCMSOTecnologia?: string; // ej. Next.js, WordPress, Shopify, Astro
+  hostingProveedor?: string;
+  credenciales?: {
+    panelUrl?: string;
+    usuario?: string;
+    password?: string;
+    notas?: string;
+  };
+  serviciosAsociados: ServicioAsociado[];
+  createdAt?: string;
+}
+
+export interface CuentaCorreo {
+  email: string;
+  password?: string;
+  tipo?: "IMAP/POP" | "Google Workspace" | "Microsoft 365" | "Otro";
+  servidorEntrada?: string;
+  servidorSalida?: string;
+  notas?: string;
+}
+
+export interface ItemCorreos {
+  id: string;
+  proyectoId?: string;
+  dominioCorreo: string;
+  proveedor: string; // Bluehosting, Google Workspace, Titan, etc.
+  cuentas: CuentaCorreo[];
+  credencialesAdmin?: {
+    panelUrl?: string;
+    usuario?: string;
+    password?: string;
+  };
+  createdAt?: string;
+}
+
+export interface ItemDominio {
+  id: string;
+  proyectoId?: string;
+  dominio: string;
+  administradoPorNosotros: boolean; // ¿compra/administración corre por nuestra cuenta?
+  proveedorRegistrador?: string; // NIC Chile, GoDaddy, Namecheap, etc.
+  fechaCompra?: string;
+  fechaRenovacion?: string;
+  costoRenovacion?: number;
+  dnsProveedor?: string;
+  dnsRegistros?: string;
+  createdAt?: string;
+}
+
+export interface ItemAppPersonalizada {
+  id: string;
+  proyectoId?: string;
+  nombreApp: string;
+  tipoApp: "movil" | "web" | "interna" | "otra";
+  stackTecnologico: string; // ej. React Native, Flutter, Next.js, FastAPI
+  repositorioUrl?: string;
+  serviciosAsociados: ServicioAsociado[];
+  credencialesAcceso?: {
+    url?: string;
+    usuario?: string;
+    password?: string;
+    notas?: string;
+  };
+  createdAt?: string;
+}
+
+export interface MantenimientoHardware {
+  id: string;
+  fecha: string;
+  descripcion: string;
+  tecnico?: string;
+  costo?: number;
+}
+
+export interface ItemHardware {
+  id: string;
+  proyectoId?: string;
+  equipo: string; // ej. Servidor Dell PowerEdge, Terminal POS, Router Mikrotik
+  numeroSerie?: string;
+  modelo?: string;
+  ubicacion?: string;
+  fechaInstalacion?: string;
+  historialMantenimientos: MantenimientoHardware[];
+  createdAt?: string;
+}
+
+export interface MatrizOperativa {
+  paginasWeb?: ItemPaginaWeb[];
+  correos?: ItemCorreos[];
+  dominios?: ItemDominio[];
+  appsPersonalizadas?: ItemAppPersonalizada[];
+  hardware?: ItemHardware[];
+}
+
+// --- TICKETS DE SOPORTE ---
+export type TicketSeveridad = "Baja" | "Media" | "Alta" | "Recomendación/Sugerencia";
+export type TicketEstado = "abierto" | "en_progreso" | "resuelto" | "cerrado";
+
+export interface TicketSoporte {
+  id?: string;
+  numero: number; // Identificador numérico secuencial con ámbito por cliente (Ticket #1, #2...)
+  clienteId: string;
+  productoOItemId?: string; // Enlace opcional a producto/servicio o proyecto
+  titulo: string;
+  descripcion: string;
+  severidad: TicketSeveridad;
+  estado: TicketEstado;
+  resolucionNotas?: string;
+  autor?: string;
+  createdAt?: FechaRegistro;
+  updatedAt?: FechaRegistro;
 }
 
 export interface Cliente {
@@ -83,13 +213,33 @@ export interface Cliente {
   social_linkedin?: string;
   social_web?: string;
   social_otro?: string;
+  direccion?: string;
+  comuna?: string;
+  ciudad?: string;
+  notas?: string;
+  
+  // Modelo unificado de prospección y clientes
+  tipo_registro?: TipoRegistro;
+  sub_estado?: SubEstadoProspecto;
+  proximoRecordatorio?: string; // ISO date-time string
+  recordatorioNota?: string;
+  recordatorioCompletado?: boolean;
+  
+  // Compatibilidad hacia atrás
   estado?: ClienteEstado;
   sintomaPrincipal?: ClienteSintomaPrincipal;
   etapaPipeline?: ClienteEtapaPipeline;
   fechaProximoSeguimiento?: string;
   proximoContacto?: ClienteProximoContacto;
+  
   infraestructura?: ClienteInfraestructura;
   historialNotas?: ClienteNota[];
+  matrizOperativa?: MatrizOperativa;
+  
+  // Estado operativo y soft-delete
+  activo?: boolean;
+  inhabilitadoAt?: string;
+  
   createdAt?: FechaRegistro;
   updatedAt?: FechaRegistro;
 }
@@ -181,6 +331,7 @@ export interface Presupuesto {
   parametros_personalizados: Record<string, string>;
   forma_pago: string;
   plazo_entrega: string;
+  condiciones_comerciales?: string;
   totales: {
     neto: number;
     iva: number;
@@ -231,7 +382,18 @@ export interface HitoPago {
   estado: "pendiente" | "cobrado" | "vencido";
   fechaCobroReal?: string;
   comprobanteRef?: string;
+  numeroFactura?: string;
+  fechaFactura?: string;
+  rutFactura?: string;
+  tieneFactura?: boolean;
 }
+
+export type EstadoKanban = 
+  | "por_hacer" 
+  | "en_desarrollo" 
+  | "bloqueado" 
+  | "pruebas_qa" 
+  | "completado";
 
 export interface ChecklistItem {
   id?: string;
@@ -242,6 +404,94 @@ export interface ChecklistItem {
   completada: boolean;
   completadaPor?: string;
   completadaEn?: string;
+  // Sincronización Kanban y Carta Gantt
+  estadoKanban?: EstadoKanban;
+  fechaInicio?: string;
+  fechaFin?: string;
+  prioridad?: "baja" | "media" | "alta";
+  responsable?: string;
+  ticketIdRelacionado?: string;
+}
+
+export interface SolicitudCambio {
+  id: string;
+  numero: number;
+  titulo: string;
+  descripcion: string;
+  impactoHoras: number;
+  impactoCostoNeto: number;
+  diasExtension?: number;
+  terminosEntrega?: string;
+  estado: "solicitada" | "aprobada" | "rechazada";
+  fecha: string;
+  solicitadoPor?: string;
+  aprobadoPor?: string;
+}
+
+export interface ReunionProyecto {
+  id: string;
+  fecha: string;
+  hora?: string;
+  tipo: "planificacion" | "avance" | "qa_entrega" | "cierre";
+  titulo: string;
+  asistentes?: string[];
+  puntosTratados: string;
+  acuerdosYCompromisos: string;
+  feedbackCliente?: string;
+  ticketGeneradoId?: string;
+  creadoEn?: string;
+}
+
+export interface CredencialTraspaso {
+  id: string;
+  servicio: string;
+  urlAcceso?: string;
+  usuarioOEmail: string;
+  rolOPermisos: string;
+  notas?: string;
+}
+
+export interface CartaGarantia {
+  diasGarantia: number;
+  fechaInicio: string;
+  fechaFin: string;
+  alcance: string;
+  exclusiones: string;
+  contactoEmergencias?: string;
+  archivoFirmadoUrl?: string;
+  archivoFirmadoNombre?: string;
+  archivoTraspasoUrl?: string;
+  archivoTraspasoNombre?: string;
+}
+
+export interface DocumentoAdjuntoProyecto {
+  id: string;
+  nombre: string;
+  tipoDoc: "alcance" | "minuta_reunion" | "acta_cierre" | "garantia" | "contrato" | "otro";
+  codigoIso?: string;
+  fileUrl: string;
+  storagePath?: string;
+  fileType: string;
+  tamanoBytes?: number;
+  fechaSubida: string;
+  estado: "borrador" | "emitido" | "firmado";
+  notas?: string;
+}
+
+export interface PendienteProyecto {
+  id: string;
+  titulo: string;
+  completado: boolean;
+  responsable?: string;
+  fechaLimite?: string;
+}
+
+export interface EspecificacionesCierre {
+  urlsDespliegue?: string;
+  versionesSoftware?: string;
+  serialesHardware?: string;
+  accesosTraspasados?: string;
+  garantiaDias?: number;
 }
 
 export interface Proyecto {
@@ -252,6 +502,7 @@ export interface Proyecto {
   clienteNombre: string;
   clienteRut?: string;
   clienteTelefono?: string;
+  clienteEmail?: string;
   nombre: string;
   descripcion: string;
   tipoServicio: ProyectoTipoServicio;
@@ -267,6 +518,27 @@ export interface Proyecto {
   hitosPago: HitoPago[];
   progresoPorcentaje?: number;
   checklist?: ChecklistItem[];
+  
+  // Extensiones operativas ISO 9001
+  solicitudesCambio?: SolicitudCambio[];
+  slaDetalle?: string;
+  especificacionesCierre?: EspecificacionesCierre;
+  propuestaFormalizada?: boolean;
+  actaEntregaFormalizada?: boolean;
+  alcanceItems?: string[];
+
+  // Fases ampliadas (Reuniones, Credenciales, Garantía, Archivos y Pendientes)
+  reuniones?: ReunionProyecto[];
+  credenciales?: CredencialTraspaso[];
+  garantia?: CartaGarantia;
+  archivosAdjuntos?: DocumentoAdjuntoProyecto[];
+  pendientes?: PendienteProyecto[];
+  condicionesComerciales?: {
+    medioPago?: string;
+    cuotas?: number;
+    notasPresupuesto?: string;
+  };
+  
   createdAt?: FechaRegistro;
   updatedAt?: FechaRegistro;
 }
@@ -275,7 +547,11 @@ export interface Proyecto {
 export type TipoDocumentoOperativo = 
   | "acta_inicio" 
   | "acta_entrega_conformidad" 
-  | "resumen_tecnico";
+  | "resumen_tecnico"
+  | "propuesta_sla"
+  | "solicitud_cambio"
+  | "traspaso_accesos"
+  | "informe_mantencion";
 
 export interface DocumentoOperativo {
   id?: string;
@@ -295,6 +571,19 @@ export interface DocumentoOperativo {
     credencialesOAccesos?: string[];
     clausulasGarantia?: string;
     observaciones?: string;
+    slaDetalle?: string;
+    crDetalles?: {
+      numero: number;
+      impactoHoras: number;
+      impactoCostoNeto: number;
+      estado: string;
+    };
+    metricasPostventa?: {
+      ticketsCerrados: number;
+      ticketsAbiertos: number;
+      horasConsumidas: number;
+      preventivasRealizadas: string[];
+    };
   };
   estado: "borrador" | "emitido" | "firmado";
   firmanteCliente?: {
@@ -330,11 +619,29 @@ export interface EventoFinanciero {
   aplicaFactura?: boolean; // Factura afecta a IVA (19%)
   deducibleIva?: boolean;  // Compra chilena con factura que genera Crédito Fiscal IVA
 
+  // --- DATOS DE FACTURA DTE Y COMPROBANTE ---
+  numeroFactura?: string;
+  fechaFactura?: string;
+  rutContraparte?: string;
+  razonSocialContraparte?: string;
+  tipoComprobante?: "factura" | "boleta" | "honorarios" | "sin_comprobante";
+
+  // --- VINCULACIÓN A PROYECTO Y CLIENTE ---
+  proyectoId?: string;
+  proyectoNombre?: string;
+  clienteId?: string;
+  clienteNombre?: string;
+  clienteRut?: string;
+  hitoPagoId?: string; // Si viene de un hito de pago de un proyecto
+  isProjectHito?: boolean;
+
   fechaVencimiento: string;
+  fechaPago?: string;
   estado: "pendiente" | "cobrado" | "pagado" | "vencido";
   esRecurrente?: boolean;
   frecuencia?: "mensual" | "anual";
   recordatorioDiasAntes?: number;
+  notas?: string;
   createdAt?: FechaRegistro;
   updatedAt?: FechaRegistro;
 }
@@ -363,40 +670,132 @@ export interface ProyeccionTributariaF29 {
   };
 }
 
-// --- SERVICIOS RECURRENTES (HOSTING & SUSCRIPCIONES) ---
+export interface DeclaracionF29 {
+  id?: string;
+  periodo: string; // Formato 'YYYY-MM' (ej. '2026-09')
+  periodoNombre?: string; // ej. 'Septiembre 2026'
+  mesPago?: string; // ej. '2026-10'
+  fechaDeclaracion: string; // ISO string
+  montoPagado: number;
+  sinMovimiento: boolean;
+  folioSII?: string;
+  estado: "declarado";
+  notas?: string;
+  declaradoPor?: string;
+  createdAt?: FechaRegistro;
+  updatedAt?: FechaRegistro;
+}
+
+// --- SERVICIOS RECURRENTES Y GASTOS CONTRATADOS DE LA EMPRESA ---
+export type TipoRecurrencia = "cliente_ingreso" | "empresa_egreso";
+export type EstadoCobroServicio = "al_dia" | "por_cobrar" | "vencido" | "pausado";
+
+export type CategoriaServicioRecurrente = 
+  | "mantencion_web"
+  | "mantencion_software"
+  | "soporte_mensual"
+  | "hosting_cliente"
+  | "servidor_dedicado"
+  | "bancario_tarjetas" 
+  | "hosting_propio" 
+  | "software_saas" 
+  | "dominios_propios" 
+  | "conectividad" 
+  | "otro";
+
+export type MetodoPagoRecurrente =
+  | "tarjeta_credito"
+  | "debito_automatico"
+  | "transferencia"
+  | "paypal"
+  | "otro";
+
 export type TipoServicioRecurrente = 
   | "Solo Correos" 
   | "Web Corporativa" 
   | "E-Commerce WooCommerce" 
-  | "Web App";
+  | "Web App"
+  | "Infraestructura & Cloud"
+  | "SaaS & Licencias"
+  | "Servicio Bancario";
 
 export type ProveedorInfraestructura = 
+  | "Hoja SpA"
   | "Bluehosting cPanel" 
   | "Vercel" 
-  | "Hetzner";
+  | "Hetzner"
+  | "Banco Falabella"
+  | "Banco Santander"
+  | "Google Workspace"
+  | "NIC Chile"
+  | "OpenAI"
+  | "Otro";
 
-export type CicloFacturacion = "mensual" | "anual";
-export type MonedaRecurrente = "CLP" | "UF";
-export type EstadoSuscripcion = "activo" | "por_vencer" | "vencido" | "suspendido";
+export type CicloFacturacion = "mensual" | "anual" | "semestral" | "trimestral";
+export type MonedaRecurrente = "CLP" | "USD" | "UF";
+export type EstadoSuscripcion = "activo" | "por_vencer" | "vencido" | "pausado" | "suspendido";
+
+export interface HistorialPagoRecurrente {
+  id?: string;
+  fechaPago: string; // ISO string
+  monto: number;
+  moneda: MonedaRecurrente;
+  periodoCubierto?: string;
+  comprobanteRef?: string;
+  numeroFactura?: string;
+  notas?: string;
+}
 
 export interface Subscription {
   id?: string;
-  clienteId: string;
-  clienteNombre: string;
-  clienteTelefono?: string;
-  clienteEmail?: string;
-  dominio: string; // ej. 'empresa.cl'
-  tipoServicio: TipoServicioRecurrente;
-  proveedor: ProveedorInfraestructura;
-  cicloFacturacion: CicloFacturacion;
+  // Tipo de flujo recurrente
+  tipoRecurrencia?: TipoRecurrencia; // "cliente_ingreso" (mantención a cliente) o "empresa_egreso" (gasto propio)
+  
+  // Identificación del Gasto / Servicio
+  nombre: string; // ej. 'Mantención Web & E-Commerce', 'Reseller cPanel Bluehosting', 'Google Workspace'
+  proveedor?: string; // ej. 'Hoja SpA' (brindado a cliente) o 'Bluehosting', 'Hetzner', 'Banco Falabella'
+  categoria: CategoriaServicioRecurrente;
+  
+  // Costos y periodicidad
   monto: number;
   moneda: MonedaRecurrente;
-  valorUFRef?: number;
+  cicloFacturacion: CicloFacturacion;
+  diaPago?: number; // Día del mes estimado de corte / cobro (1-31)
+  montoEstimadoMensualCLP?: number;
+
+  // Fechas y vigencia
   fechaInicio: string; // ISO string
-  fechaCorte: string;  // ISO string (próxima fecha de renovación)
+  fechaCorte: string;  // ISO string (próximo vencimiento o fecha de corte/cobro)
   estado: EstadoSuscripcion;
+  estadoCobro?: EstadoCobroServicio; // "al_dia" | "por_cobrar" | "vencido" | "pausado"
   diasRestantes?: number;
+  ultimaRenovacion?: string;
+  ultimoCobroFecha?: string;
+
+  // Medio de pago y tributación (preparado para Flujo de Caja)
+  metodoPago?: MetodoPagoRecurrente;
+  tarjetaOCuenta?: string; // ej. 'Mastercard Falabella #1480', 'Transferencia Banco Santander'
+  aplicaFactura?: boolean; // ¿Emite factura con IVA o recibo?
+  deducibleIva?: boolean;  // ¿El IVA es deducible para la empresa?
+  numeroFactura?: string;  // Número de factura de la última emisión
+  enlaceGestion?: string;  // URL al panel del proveedor o panel de control
+  
+  // Vinculación con Cliente (Servicios y Mantenciones)
+  clienteId?: string;
+  clienteNombre?: string;
+  clienteRut?: string;
+  clienteTelefono?: string;
+  clienteEmail?: string;
+  
+  // SLA Operativo y Alcance
+  slaHorasMensuales?: number; // Horas de soporte/mantención mensuales incluidas
+  horasConsumidasMes?: number; // Horas consumidas en el período
+  dominio?: string; // Dominio web asociado
+  tipoServicio?: string;
+  valorUFRef?: number;
+
   notas?: string;
+  historialPagos?: HistorialPagoRecurrente[];
   createdAt?: FechaRegistro;
   updatedAt?: FechaRegistro;
 }

@@ -31,6 +31,12 @@ const checklistItemSchema = z.object({
   completada: z.boolean(),
   completadaPor: z.string().optional(),
   completadaEn: z.string().optional(),
+  estadoKanban: z.enum(["por_hacer", "en_desarrollo", "bloqueado", "pruebas_qa", "completado"]).optional(),
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  prioridad: z.enum(["baja", "media", "alta"]).optional(),
+  responsable: z.string().optional(),
+  ticketIdRelacionado: z.string().optional(),
 });
 
 const proyectoSchema = z.object({
@@ -40,6 +46,7 @@ const proyectoSchema = z.object({
   clienteNombre: z.string(),
   clienteRut: z.string().optional(),
   clienteTelefono: z.string().optional(),
+  clienteEmail: z.string().optional(),
   nombre: z.string().min(2, "El nombre del proyecto es obligatorio"),
   descripcion: z.string().optional().default(""),
   tipoServicio: z.enum([
@@ -69,6 +76,18 @@ const proyectoSchema = z.object({
   hitosPago: z.array(hitoPagoSchema).default([]),
   progresoPorcentaje: z.number().default(0),
   checklist: z.array(checklistItemSchema).default([]),
+  solicitudesCambio: z.array(z.any()).optional().default([]),
+  slaDetalle: z.string().optional(),
+  especificacionesCierre: z.any().optional(),
+  propuestaFormalizada: z.boolean().optional().default(false),
+  actaEntregaFormalizada: z.boolean().optional().default(false),
+  alcanceItems: z.array(z.string()).optional().default([]),
+  reuniones: z.array(z.any()).optional().default([]),
+  credenciales: z.array(z.any()).optional().default([]),
+  garantia: z.any().optional(),
+  archivosAdjuntos: z.array(z.any()).optional().default([]),
+  pendientes: z.array(z.any()).optional().default([]),
+  condicionesComerciales: z.any().optional(),
 });
 
 export async function GET() {

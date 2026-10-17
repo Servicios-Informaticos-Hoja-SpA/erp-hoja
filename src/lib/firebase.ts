@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore/lite"; // Using LITE for server-side stability
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDzs3mc-WIUS_1lFyr-z9nt-MszcCp75o8",
@@ -18,4 +19,8 @@ const auth = getAuth(app);
 // Firestore Lite is stateless and much more reliable in Next.js API Routes (server-side)
 const db = getFirestore(app);
 
-export { app, auth, db };
+// Firebase Storage for user avatars and attachments
+const storage = getStorage(app);
+
+export { app, auth, db, storage };
+

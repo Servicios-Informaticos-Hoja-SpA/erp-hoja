@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase";
 import { verifySession } from "@/lib/auth-server";
+import { sanitizeData } from "@/lib/sanitize";
 import { z } from "zod";
 
 const proximoContactoSchema = z.object({
@@ -51,39 +52,63 @@ const notaSchema = z.object({
   fecha: z.string(),
   texto: z.string(),
   tipo: z.enum(["reunion", "llamada", "whatsapp", "acuerdo"]).optional(),
+  recordatorio: z.string().optional(),
 });
 
+function removeUndefined(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return undefined;
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefined).filter(v => v !== undefined);
+  }
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const cleanVal = removeUndefined(v);
+      if (cleanVal !== undefined) {
+        res[k] = cleanVal;
+      }
+    }
+    return res;
+  }
+  return obj;
+}
+
 const clienteUpdateSchema = z.object({
-  nombre: z.string().min(3).optional(),
-  email: z.string().email().optional().or(z.literal("")),
-  rut: z.string().optional(),
-  telefono: z.string().optional(),
-  contacto: z.string().optional(),
-  social_web: z.string().optional(),
-  social_instagram: z.string().optional(),
-  social_linkedin: z.string().optional(),
-  social_otro: z.string().optional(),
-  estado: z.enum(["prospecto", "activo", "recurrente", "inactivo"]).optional(),
-  sintomaPrincipal: z.enum([
-    "Google Maps desactualizado / sin botón WhatsApp",
-    "Web lenta / sin certificado SSL",
-    "Usa correos gratuitos (@gmail / @hotmail)",
-    "Gestión manual de pedidos por redes",
-    "Sin pasarela de pagos automatizada"
-  ]).optional(),
-  etapaPipeline: z.enum([
-    "Detectado",
-    "Contactado",
-    "En Diagnóstico",
-    "Cotización Presentada",
-    "Cerrado Ganado",
-    "Perdido"
-  ]).optional(),
-  fechaProximoSeguimiento: z.string().optional(),
-  proximoContacto: proximoContactoSchema,
-  infraestructura: infraestructuraSchema,
-  historialNotas: z.array(notaSchema).optional(),
-}).partial();
+  nombre: z.string().optional(),
+  email: z.string().optional().nullable(),
+  rut: z.string().optional().nullable(),
+  telefono: z.string().optional().nullable(),
+  contacto: z.string().optional().nullable(),
+  social_web: z.string().optional().nullable(),
+  social_instagram: z.string().optional().nullable(),
+  social_linkedin: z.string().optional().nullable(),
+  social_otro: z.string().optional().nullable(),
+
+  // Modelo unificado comercial
+  tipo_registro: z.string().optional().nullable(),
+  sub_estado: z.string().optional().nullable(),
+  proximoRecordatorio: z.string().optional().nullable(),
+  recordatorioNota: z.string().optional().nullable(),
+  recordatorioCompletado: z.boolean().optional().nullable(),
+
+  // Inhabilitación / Reactivación
+  activo: z.boolean().optional(),
+  inhabilitadoAt: z.string().optional().nullable(),
+  direccion: z.string().optional().nullable(),
+  comuna: z.string().optional().nullable(),
+  ciudad: z.string().optional().nullable(),
+  notas: z.string().optional().nullable(),
+
+  // Retrocompatibilidad
+  estado: z.string().optional().nullable(),
+  sintomaPrincipal: z.string().optional().nullable(),
+  etapaPipeline: z.string().optional().nullable(),
+  fechaProximoSeguimiento: z.string().optional().nullable(),
+  proximoContacto: z.any().optional(),
+  infraestructura: z.any().optional(),
+  historialNotas: z.any().optional(),
+  matrizOperativa: z.any().optional(),
+}).passthrough();
 
 export async function GET(
   request: Request,
@@ -115,11 +140,13 @@ export async function PUT(
   }
   try {
     const { id } = await params;
-    const body = await request.json();
+    const rawBody = await request.json();
+    const sanitizedBody = sanitizeData(rawBody);
     
-    // Validación con Zod
-    const result = clienteUpdateSchema.safeParse(body);
+    // Validación con Zod permisiva y extensible
+    const result = clienteUpdateSchema.safeParse(sanitizedBody);
     if (!result.success) {
+      console.error("[PUT /api/clientes/[id]] Zod validation error:", JSON.stringify(result.error.format()));
       return NextResponse.json({ 
         error: "Datos de actualización inválidos", 
         details: result.error.format() 
@@ -127,14 +154,19 @@ export async function PUT(
     }
 
     const docRef = doc(db, "clientes", id);
+
+    // Filtrar estrictamente campos undefined recursivamente para compatibilidad total con Firestore
+    const cleanUpdateData = (removeUndefined(result.data) || {}) as Record<string, unknown>;
+    delete cleanUpdateData.id;
     
     await updateDoc(docRef, {
-      ...result.data,
+      ...cleanUpdateData,
       updatedAt: new Date().toISOString()
     });
     
-    return NextResponse.json({ message: "Cliente actualizado" });
+    return NextResponse.json({ message: "Cliente actualizado con éxito" });
   } catch (error: unknown) {
+    console.error("[PUT /api/clientes/[id]] Server error:", error);
     const errorMsg = error instanceof Error ? error.message : "Error al actualizar cliente";
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }

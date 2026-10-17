@@ -1,29 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { ClientesListView } from "./clientes-list.view";
-import { getClientes, deleteCliente } from "@/lib/services";
-import { Cliente } from "@/lib/types";
+import { getClientes, deleteCliente, inhabilitarCliente, reactivarCliente, updateCliente } from "@/lib/services";
+import { Cliente, SubEstadoProspecto } from "@/lib/types";
 import { toast } from "sonner";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ClienteForm } from "./cliente-form";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { Loader2, X } from "lucide-react";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { Loader2 } from "lucide-react";
 
-export const ClientesList = () => {
+function ClientesListContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") || "";
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialQuery);
   const [loading, setLoading] = useState(true);
-  
-  // States for the new side panel workflow
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [isNew, setIsNew] = useState(false);
+
+  // Sincronizar parámetro URL si cambia
+  useEffect(() => {
+    if (initialQuery) {
+      queueMicrotask(() => setSearch(initialQuery));
+    }
+  }, [initialQuery]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -31,7 +32,7 @@ export const ClientesList = () => {
     }
   }, [user, authLoading, router]);
 
-  const load = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -43,7 +44,7 @@ export const ClientesList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -68,11 +69,53 @@ export const ClientesList = () => {
     };
   }, [user]);
 
+  const handleInhabilitar = async (id: string) => {
+    try {
+      await inhabilitarCliente(id);
+      toast.success("Registro inhabilitado");
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo inhabilitar el registro");
+    }
+  };
+
+  const handleReactivar = async (id: string, tipo?: "prospecto" | "cliente") => {
+    try {
+      await reactivarCliente(id, tipo);
+      toast.success("Registro reactivado");
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo reactivar el registro");
+    }
+  };
+
+  const handleToggleSubEstado = async (id: string, currentSubEstado?: SubEstadoProspecto) => {
+    const nextSubEstado: SubEstadoProspecto = currentSubEstado === "contactado" ? "sin_contacto" : "contactado";
+    try {
+      // Actualización optimista inmediata
+      setClientes((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, sub_estado: nextSubEstado } : c))
+      );
+      await updateCliente(id, { sub_estado: nextSubEstado });
+      toast.success(
+        nextSubEstado === "contactado"
+          ? "Marcado como 📞 Contactado"
+          : "Marcado como ⏳ Sin Contacto"
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al actualizar sub-estado");
+      loadData();
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteCliente(id);
-      toast.success("Cliente eliminado");
-      load();
+      toast.success("Cliente eliminado correctamente");
+      loadData();
     } catch (err) {
       console.error(err);
       toast.error("No se pudo eliminar el cliente");
@@ -82,74 +125,36 @@ export const ClientesList = () => {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-10 w-10 animate-spin text-[#abaafd]" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!user) return null;
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      await signOut(auth);
-      window.location.href = "/login";
-    } catch (err) {
-      console.error("Error signing out", err);
-    }
-  };
-
   return (
-    <>
-      <ClientesListView
-        clientes={clientes}
-        search={search}
-        setSearch={setSearch}
-        onAdd={() => setIsNew(true)}
-        onEdit={(id) => {
-          setEditingId(id);
-          setIsNew(false);
-        }}
-        onDelete={handleDelete}
-        loading={loading}
-        onLogout={handleLogout}
-      />
+    <ClientesListView
+      clientes={clientes}
+      search={search}
+      setSearch={setSearch}
+      onRefresh={loadData}
+      onInhabilitar={handleInhabilitar}
+      onReactivar={handleReactivar}
+      onToggleSubEstado={handleToggleSubEstado}
+      onDelete={handleDelete}
+      loading={loading}
+    />
+  );
+}
 
-      {/* Side Panel for Create/Edit */}
-      <Sheet open={isNew || !!editingId} onOpenChange={(open) => {
-        if (!open) {
-          setIsNew(false);
-          setEditingId(null);
-        }
-      }}>
-        <SheetContent 
-          side="right" 
-          className="!w-screen sm:!w-[70vw] sm:!max-w-[1100px] p-0 border-none shadow-2xl overflow-hidden flex flex-col [&>button]:hidden"
-        >
-          <SheetHeader className="p-6 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
-            <div>
-              <SheetTitle className="text-2xl font-black tracking-tight uppercase leading-none">
-                {isNew ? "Crear Cliente" : "Perfil de Cliente"}
-              </SheetTitle>
-              <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Hoja SpA CRM System</p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => { setIsNew(false); setEditingId(null); }} className="rounded-full hover:bg-black/10">
-              <X className="h-6 w-6" />
-            </Button>
-          </SheetHeader>
-          
-          <div className="flex-1 overflow-hidden">
-            <ClienteForm
-              id={editingId || undefined}
-              onSuccess={() => {
-                setIsNew(false);
-                setEditingId(null);
-                load();
-              }}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
-    </>
+export const ClientesList = () => {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ClientesListContent />
+    </Suspense>
   );
 };

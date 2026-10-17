@@ -13,8 +13,27 @@ import { Presupuesto, ConfiguracionGlobal, Proyecto, PresupuestoEstado, Presupue
 import { getDefaultChecklist } from "@/features/proyectos/checklist-templates";
 import { generatePDF } from "@/lib/pdf-utils";
 import { toast } from "sonner";
-import { PresupuestoForm } from "./presupuesto-form";
-import { PresupuestoPreview } from "./presupuesto-preview.view";
+import dynamic from "next/dynamic";
+import { Loader2, X, Download, Briefcase, Pencil } from "lucide-react";
+
+const PresupuestoForm = dynamic(
+  () => import("./presupuesto-form").then((m) => m.PresupuestoForm),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col items-center justify-center p-12 h-full text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+        <p className="text-sm font-semibold text-muted-foreground">Cargando editor de presupuestos...</p>
+      </div>
+    ),
+  }
+);
+
+const PresupuestoPreview = dynamic(
+  () => import("./presupuesto-preview.view").then((m) => m.PresupuestoPreview),
+  { ssr: false }
+);
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { 
   Dialog, 
@@ -22,7 +41,7 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog";
-import { Loader2, X } from "lucide-react";
+import { WhatsAppButton } from "@/components/common/whatsapp-button";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
@@ -325,36 +344,23 @@ export const PresupuestoList = () => {
       }}>
         <SheetContent 
           side="right" 
-          className="!w-screen sm:!w-[75vw] sm:!max-w-[1200px] p-0 border-l border-white/10 shadow-2xl overflow-hidden flex flex-col [&>button]:hidden bg-card"
+          className="!w-screen sm:!w-[80vw] sm:!max-w-[1150px] p-0 border-none shadow-2xl overflow-hidden flex flex-col [&>button]:hidden bg-background"
         >
-          <SheetHeader className="p-6 bg-slate-900 border-b border-white/10 flex flex-row items-center justify-between shrink-0">
-            <div>
-              <SheetTitle className="text-xl sm:text-2xl font-black tracking-tight uppercase leading-none text-foreground">
-                {isNew ? "Emitir Nuevo Presupuesto" : "Editar Presupuesto y Condiciones"}
-              </SheetTitle>
-              <p className="text-xs font-bold text-primary uppercase tracking-widest mt-1">
-                Servicios Informáticos Hoja SpA &bull; Propuesta Comercial
-              </p>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => { setIsNew(false); setEditingId(null); }} 
-              className="rounded-xl hover:bg-white/10 text-foreground h-10 w-10"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </SheetHeader>
-          
-          <div className="flex-1 overflow-hidden">
-            <PresupuestoForm
-              id={editingId || undefined}
-              onSuccess={() => {
-                setIsNew(false);
-                setEditingId(null);
-                load();
-              }}
-            />
+          <div className="flex-1 overflow-hidden h-full">
+            {(isNew || !!editingId) && (
+              <PresupuestoForm
+                id={editingId || undefined}
+                onClose={() => {
+                  setIsNew(false);
+                  setEditingId(null);
+                }}
+                onSuccess={() => {
+                  setIsNew(false);
+                  setEditingId(null);
+                  load();
+                }}
+              />
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -378,17 +384,83 @@ export const PresupuestoList = () => {
         )}
       </div>
 
-      {/* Modal de Vista Previa Rápida */}
+      {/* Modal de Vista Previa de Alta Fidelidad */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 border border-white/10 bg-card overflow-hidden">
-          <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between shrink-0">
-            <DialogTitle className="text-base font-black">
-              Vista Previa &bull; Cotización N° {downloadingPresupuesto?.numero}
-            </DialogTitle>
+        <DialogContent className="!max-w-5xl h-[92vh] flex flex-col p-0 border border-white/10 bg-card overflow-hidden shadow-2xl">
+          <DialogHeader className="p-4 sm:px-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-slate-900/60">
+            <div>
+              <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                <span>Cotización N° {downloadingPresupuesto?.numero}</span>
+                {downloadingPresupuesto?.version && downloadingPresupuesto.version > 1 && (
+                  <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-bold">
+                    v{downloadingPresupuesto.version}
+                  </span>
+                )}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground font-medium">
+                Cliente: {downloadingPresupuesto?.cliente_nombre} &bull; Total: ${downloadingPresupuesto?.totales?.total?.toLocaleString("es-CL")} CLP
+              </p>
+            </div>
+
+            {/* Acciones directas en el preview */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {downloadingPresupuesto && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownload(downloadingPresupuesto, "save")}
+                    className="h-9 px-3 rounded-xl text-xs font-bold gap-1.5 border-border"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Descargar PDF
+                  </Button>
+
+                  {(() => {
+                    const cl = clientes.find(c => c.id === downloadingPresupuesto.cliente_id || c.nombre === downloadingPresupuesto.cliente_nombre);
+                    const tel = cl?.telefono;
+                    if (!tel) return null;
+                    return (
+                      <WhatsAppButton
+                        telefono={tel}
+                        clienteNombre={downloadingPresupuesto.cliente_nombre}
+                        size="sm"
+                        className="h-9 px-3 text-xs rounded-xl shadow-none"
+                      />
+                    );
+                  })()}
+
+                  {downloadingPresupuesto.estado === "aprobado" && !downloadingPresupuesto.proyecto_id && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setIsPreviewOpen(false);
+                        handleCreateProjectFromBudget(downloadingPresupuesto);
+                      }}
+                      className="h-9 px-3 rounded-xl text-xs font-black bg-emerald-500 text-white gap-1.5 shadow-md shadow-emerald-500/20"
+                    >
+                      <Briefcase className="h-3.5 w-3.5" /> Convertir a Proyecto
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsPreviewOpen(false);
+                      setEditingId(downloadingPresupuesto.id || null);
+                    }}
+                    className="h-9 px-3 rounded-xl text-xs font-bold gap-1.5 hover:bg-white/10"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </Button>
+                </>
+              )}
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-4 sm:p-8 bg-slate-950/40">
+
+          <div className="flex-1 overflow-auto p-4 sm:p-8 bg-slate-950/80">
             {downloadingPresupuesto && globalConfig ? (
-              <div className="max-w-[800px] mx-auto shadow-2xl rounded-2xl overflow-hidden">
+              <div className="w-full max-w-[860px] mx-auto pb-10">
                 <PresupuestoPreview
                   id="presupuesto-document-modal"
                   data={downloadingPresupuesto}

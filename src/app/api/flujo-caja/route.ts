@@ -28,11 +28,24 @@ const eventoFinancieroSchema = z.object({
   montoTotal: z.number().optional(),
   aplicaFactura: z.boolean().optional(),
   deducibleIva: z.boolean().optional(),
+  numeroFactura: z.string().optional(),
+  fechaFactura: z.string().optional(),
+  rutContraparte: z.string().optional(),
+  razonSocialContraparte: z.string().optional(),
+  tipoComprobante: z.enum(["factura", "boleta", "honorarios", "sin_comprobante"]).optional(),
+  proyectoId: z.string().optional(),
+  proyectoNombre: z.string().optional(),
+  clienteId: z.string().optional(),
+  clienteNombre: z.string().optional(),
+  clienteRut: z.string().optional(),
+  hitoPagoId: z.string().optional(),
   fechaVencimiento: z.string().min(4, "La fecha de vencimiento es obligatoria"),
+  fechaPago: z.string().optional(),
   estado: z.enum(["pendiente", "cobrado", "pagado", "vencido"]).default("pendiente"),
   esRecurrente: z.boolean().optional().default(false),
   frecuencia: z.enum(["mensual", "anual"]).optional(),
   recordatorioDiasAntes: z.number().optional().default(5),
+  notas: z.string().optional(),
 });
 
 export async function GET() {
@@ -69,23 +82,62 @@ export async function POST(request: Request) {
     const itemData = { ...result.data };
     const valorBase = itemData.montoTotal ?? itemData.monto;
 
-    // Si no vienen calculados los campos tributarios, calcularlos coherentemente
-    if (itemData.montoNeto === undefined || itemData.ivaMonto === undefined) {
-      if (itemData.tipo === "ingreso" && itemData.aplicaFactura !== false) {
-        // Venta afecta a IVA 19%
-        itemData.montoTotal = valorBase;
-        itemData.montoNeto = Math.round(valorBase / 1.19);
-        itemData.ivaMonto = valorBase - itemData.montoNeto;
-        itemData.aplicaFactura = true;
-      } else if (itemData.tipo === "egreso" && itemData.deducibleIva) {
-        // Compra local deducible de IVA
-        itemData.montoTotal = valorBase;
-        itemData.montoNeto = Math.round(valorBase / 1.19);
-        itemData.ivaMonto = valorBase - itemData.montoNeto;
-      } else {
-        itemData.montoTotal = valorBase;
-        itemData.montoNeto = valorBase;
-        itemData.ivaMonto = 0;
+    const conceptoLower = (itemData.concepto || "").toLowerCase();
+    const esSaldoInicial = 
+      (itemData.categoria as string) === "saldo_inicial" ||
+      conceptoLower.includes("saldo inicial") ||
+      conceptoLower.includes("caja inicial") ||
+      conceptoLower.includes("aporte de capital") ||
+      conceptoLower.includes("ingreso inicial") ||
+      itemData.tipoComprobante === "sin_comprobante";
+
+    // Solo es venta con factura si tiene número de factura o es comprobante factura y NO es saldo inicial
+    const esVentaConFactura = 
+      itemData.tipo === "ingreso" &&
+      !esSaldoInicial &&
+      Boolean(
+        (itemData.numeroFactura && itemData.numeroFactura.trim().length > 0) ||
+        itemData.tipoComprobante === "factura" ||
+        itemData.aplicaFactura === true
+      );
+
+    // Regla de Negocio: En egresos/gastos, SOLO generan Crédito Fiscal IVA si
+    // están asociados a un proyecto Y tienen factura asociada.
+    const esGastoProyectoConFactura = 
+      itemData.tipo === "egreso" && 
+      !esSaldoInicial &&
+      Boolean((itemData.proyectoId && itemData.proyectoId !== "ninguno") || itemData.referenciaId) && 
+      Boolean(
+        (itemData.numeroFactura && itemData.numeroFactura.trim().length > 0) || 
+        itemData.tipoComprobante === "factura"
+      ) &&
+      itemData.tipoComprobante !== "sin_comprobante" &&
+      itemData.tipoComprobante !== "boleta" &&
+      itemData.deducibleIva !== false;
+
+    if (esVentaConFactura) {
+      // Venta afecta a IVA 19% con factura
+      itemData.montoTotal = valorBase;
+      itemData.montoNeto = itemData.montoNeto ?? Math.round(valorBase / 1.19);
+      itemData.ivaMonto = itemData.ivaMonto ?? (valorBase - itemData.montoNeto);
+      itemData.aplicaFactura = true;
+      itemData.deducibleIva = false;
+    } else if (esGastoProyectoConFactura) {
+      // Gasto de proyecto con factura: Crédito fiscal IVA deducible
+      itemData.montoTotal = valorBase;
+      itemData.montoNeto = itemData.montoNeto ?? Math.round(valorBase / 1.19);
+      itemData.ivaMonto = itemData.ivaMonto ?? (valorBase - itemData.montoNeto);
+      itemData.deducibleIva = true;
+    } else {
+      // Saldo inicial, aportes, boletas, ingresos no facturados o gastos generales sin factura de proyecto (No deducibles de IVA)
+      itemData.montoTotal = valorBase;
+      itemData.montoNeto = valorBase;
+      itemData.ivaMonto = 0;
+      itemData.aplicaFactura = false;
+      itemData.deducibleIva = false;
+      if (esSaldoInicial) {
+        itemData.tipoComprobante = "sin_comprobante";
+        itemData.numeroFactura = undefined;
       }
     }
 

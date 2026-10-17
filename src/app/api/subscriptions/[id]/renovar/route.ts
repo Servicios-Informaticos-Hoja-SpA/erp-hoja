@@ -18,39 +18,68 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const { periodo = "anual" } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { 
+      periodo, 
+      monto, 
+      notas, 
+      comprobanteRef 
+    } = body;
 
     const docRef = doc(db, "subscriptions", id);
     const snap = await getDoc(docRef);
 
     if (!snap.exists()) {
-      return NextResponse.json({ error: "Suscripción no encontrada" }, { status: 404 });
+      return NextResponse.json({ error: "Servicio recurrente no encontrado" }, { status: 404 });
     }
 
     const data = snap.data();
+    const cycle = periodo || data.cicloFacturacion || "mensual";
     const currentCorte = new Date(data.fechaCorte || Date.now());
     
-    // Si ya venció hace mucho, renovar a partir de hoy, de lo contrario extender fechaCorte existente
-    const baseDate = currentCorte.getTime() < Date.now() ? new Date() : currentCorte;
+    // Si ya venció, renovar a partir de hoy, de lo contrario extender fechaCorte existente
+    const baseDate = isNaN(currentCorte.getTime()) || currentCorte.getTime() < Date.now() 
+      ? new Date() 
+      : currentCorte;
 
-    if (periodo === "mensual") {
+    if (cycle === "mensual") {
       baseDate.setMonth(baseDate.getMonth() + 1);
+    } else if (cycle === "trimestral") {
+      baseDate.setMonth(baseDate.getMonth() + 3);
+    } else if (cycle === "semestral") {
+      baseDate.setMonth(baseDate.getMonth() + 6);
     } else {
       baseDate.setFullYear(baseDate.getFullYear() + 1);
     }
 
     const newFechaCorte = baseDate.toISOString().split("T")[0];
+    const diffDays = Math.ceil((baseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+    const nuevoPago = {
+      id: `pago-${Date.now()}`,
+      fechaPago: new Date().toISOString(),
+      monto: Number(monto !== undefined ? monto : data.monto || 0),
+      moneda: data.moneda || "CLP",
+      periodoCubierto: `Renovación ${cycle} hasta ${newFechaCorte}`,
+      comprobanteRef: comprobanteRef || "",
+      notas: notas || `Renovación de ciclo (${cycle})`,
+    };
+
+    const historialPrevio = Array.isArray(data.historialPagos) ? data.historialPagos : [];
 
     await updateDoc(docRef, {
       fechaCorte: newFechaCorte,
       estado: "activo",
+      diasRestantes: diffDays,
       ultimaRenovacion: new Date().toISOString(),
+      historialPagos: [nuevoPago, ...historialPrevio],
       updatedAt: new Date().toISOString()
     });
 
     return NextResponse.json({ 
-      message: "Suscripción renovada con éxito", 
-      nuevaFechaCorte: newFechaCorte 
+      message: "Ciclo de servicio renovado y registrado con éxito", 
+      nuevaFechaCorte: newFechaCorte,
+      pago: nuevoPago
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error al renovar";

@@ -12,7 +12,15 @@ import { verifySession } from "@/lib/auth-server";
 import { z } from "zod";
 
 const documentoSchema = z.object({
-  tipo: z.enum(["acta_inicio", "acta_entrega_conformidad", "resumen_tecnico"]),
+  tipo: z.enum([
+    "acta_inicio", 
+    "acta_entrega_conformidad", 
+    "resumen_tecnico",
+    "propuesta_sla",
+    "solicitud_cambio",
+    "traspaso_accesos",
+    "informe_mantencion"
+  ]),
   version: z.number().default(1),
   titulo: z.string().min(2),
   fechaEmision: z.string().default(() => new Date().toISOString().split("T")[0]),
@@ -30,6 +38,9 @@ const documentoSchema = z.object({
     credencialesOAccesos: z.array(z.string()).optional(),
     clausulasGarantia: z.string().optional(),
     observaciones: z.string().optional(),
+    slaDetalle: z.string().optional(),
+    crDetalles: z.any().optional(),
+    metricasPostventa: z.any().optional(),
   }),
   estado: z.enum(["borrador", "emitido", "firmado"]).default("emitido"),
   firmanteCliente: z.object({

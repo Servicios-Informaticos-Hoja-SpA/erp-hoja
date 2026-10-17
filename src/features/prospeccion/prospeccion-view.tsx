@@ -28,10 +28,21 @@ import {
   Mail,
   Play,
   Pause,
-  Trash2
+  Trash2,
+  FileText,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
+} from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -44,6 +55,7 @@ import {
 import { 
   getProspeccionData, 
   updateProspectEstado, 
+  updateProspect,
   finishProspectingSession,
   cancelProspectingSession,
   ProspeccionStatsResponse 
@@ -70,6 +82,11 @@ export function ProspeccionView() {
   const [filtroSintoma, setFiltroSintoma] = useState<string>("todos");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Modal para editar/añadir nota interna del prospecto
+  const [selectedProspectForNota, setSelectedProspectForNota] = useState<Prospect | null>(null);
+  const [prospectNotaText, setProspectNotaText] = useState("");
+  const [savingProspectNota, setSavingProspectNota] = useState(false);
 
   const checkLocalStorageSession = useCallback(() => {
     try {
@@ -192,6 +209,40 @@ export function ProspeccionView() {
     setCopiedId(id);
     toast.success("Mensaje copiado al portapapeles");
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleOpenNotaModal = (prospect: Prospect) => {
+    setSelectedProspectForNota(prospect);
+    setProspectNotaText(prospect.notas || "");
+  };
+
+  const handleSaveProspectNota = async () => {
+    if (!selectedProspectForNota?.id) return;
+    setSavingProspectNota(true);
+    try {
+      const notaFinal = prospectNotaText.trim();
+      await updateProspect(selectedProspectForNota.id, {
+        notas: notaFinal,
+      });
+
+      if (data) {
+        const updatedProspects = data.prospects.map((p) =>
+          p.id === selectedProspectForNota.id ? { ...p, notas: notaFinal } : p
+        );
+        setData({
+          ...data,
+          prospects: updatedProspects,
+        });
+      }
+
+      toast.success("Nota interna del prospecto guardada");
+      setSelectedProspectForNota(null);
+    } catch (error) {
+      console.error("Error guardando nota:", error);
+      toast.error("Error al guardar la nota del prospecto");
+    } finally {
+      setSavingProspectNota(false);
+    }
   };
 
   const streak = data?.streak || {
@@ -881,11 +932,22 @@ export function ProspeccionView() {
                         </span>
                       </div>
 
-                      {/* Snippet del mensaje o notas */}
+                      {/* Snippet del mensaje */}
                       {prospect.mensajeEnviado && (
                         <p className="text-xs text-slate-400 line-clamp-1 italic bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
                           "{prospect.mensajeEnviado}"
                         </p>
+                      )}
+
+                      {/* Nota interna destacada */}
+                      {prospect.notas && (
+                        <div className="flex items-start gap-2 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
+                          <FileText className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <span className="font-bold text-amber-300 block text-[11px] uppercase tracking-wider">Nota Interna:</span>
+                            <p className="whitespace-pre-wrap leading-relaxed">{prospect.notas}</p>
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -910,6 +972,21 @@ export function ProspeccionView() {
                         <option value="cerrado">🏆 Cerrado Ganado</option>
                         <option value="descartado">❌ Descartado</option>
                       </select>
+
+                      {/* Botón Nota Interna */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNotaModal(prospect)}
+                        className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-bold transition-all ${
+                          prospect.notas
+                            ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30"
+                            : "bg-slate-950 hover:bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700"
+                        }`}
+                        title="Ver o editar notas internas de este prospecto"
+                      >
+                        <FileText className={`h-3.5 w-3.5 ${prospect.notas ? "text-amber-400" : "text-slate-400"}`} />
+                        <span>{prospect.notas ? "Nota" : "+ Nota"}</span>
+                      </button>
 
                       {/* Botón WhatsApp Directo (si tiene teléfono) */}
                       {waUrl && (
@@ -1067,6 +1144,69 @@ export function ProspeccionView() {
           loadData();
         }}
       />
+
+      {/* 6. Modal de Edición de Nota Interna de Prospecto */}
+      <Dialog
+        open={!!selectedProspectForNota}
+        onOpenChange={(open) => !open && setSelectedProspectForNota(null)}
+      >
+        <DialogContent className="sm:max-w-md bg-slate-950 border border-white/10 text-white p-6 rounded-2xl shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-400 mb-1">
+              <FileText className="h-5 w-5" />
+              <DialogTitle className="text-base font-bold text-white">
+                Nota Interna del Prospecto
+              </DialogTitle>
+            </div>
+            <p className="text-xs text-slate-400">
+              {selectedProspectForNota?.nombreNegocio} • {selectedProspectForNota?.sintoma}
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="prospect-nota" className="text-xs font-medium text-slate-300">
+                Comentarios, acuerdos u observaciones del lead:
+              </Label>
+              <Textarea
+                id="prospect-nota"
+                rows={4}
+                value={prospectNotaText}
+                onChange={(e) => setProspectNotaText(e.target.value)}
+                placeholder="Ej: Conversé con el encargado, tienen presupuesto de $400.000 para tienda web, llamar de nuevo el jueves..."
+                className="bg-slate-900/90 border-white/10 text-white text-xs leading-relaxed rounded-xl resize-none focus-visible:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-white/10">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSelectedProspectForNota(null)}
+              className="bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 text-xs h-9 rounded-xl"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={savingProspectNota}
+              onClick={handleSaveProspectNota}
+              className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-9 rounded-xl gap-1.5"
+            >
+              {savingProspectNota ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando...
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5" /> Guardar Nota
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

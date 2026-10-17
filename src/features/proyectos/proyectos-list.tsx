@@ -2,23 +2,19 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ProyectosListView } from "./proyectos-list.view";
-import { ProyectoDetailView } from "./proyecto-detail.view";
 import { 
   getProyectos, 
   saveProyecto, 
-  updateProyecto, 
   deleteProyecto,
-  getDocumentosProyecto,
-  saveDocumentoOperativo,
   getClientes
 } from "@/lib/services";
-import { Proyecto, DocumentoOperativo, Cliente } from "@/lib/types";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Proyecto, Cliente } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,19 +28,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { getDefaultChecklist } from "./checklist-templates";
 import { toast } from "sonner";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export const ProyectosList: React.FC = () => {
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  // Estado para detalle de proyecto seleccionado
-  const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(null);
-  const [documentos, setDocumentos] = useState<DocumentoOperativo[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
 
   // Estado para crear nuevo proyecto manual
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -52,105 +42,38 @@ export const ProyectosList: React.FC = () => {
   const [nuevoClienteId, setNuevoClienteId] = useState("");
   const [nuevoTipoServicio, setNuevoTipoServicio] = useState<Proyecto["tipoServicio"]>("desarrollo_web");
   const [nuevoMonto, setNuevoMonto] = useState<number>(500000);
+  const [creating, setCreating] = useState(false);
 
   const loadProyectos = useCallback(async () => {
     try {
-      const data = await getProyectos();
-      setProyectos(data);
-      return data;
+      setLoading(true);
+      const [projData, cliData] = await Promise.all([
+        getProyectos(),
+        getClientes().catch(() => []),
+      ]);
+      setProyectos(projData);
+      setClientes(cliData);
     } catch (err) {
       console.error(err);
       toast.error("Error al cargar proyectos");
-      return [];
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const init = async () => {
-      try {
-        const [projData, cliData] = await Promise.all([
-          getProyectos(),
-          getClientes().catch(() => []),
-        ]);
-        if (isMounted) {
-          setProyectos(projData);
-          setClientes(cliData);
-          setLoading(false);
-
-          // Si viene ?id=... abrir automáticamente el proyecto
-          const urlId = searchParams.get("id");
-          if (urlId) {
-            const found = projData.find((p) => p.id === urlId);
-            if (found) {
-              setSelectedProyecto(found);
-              getDocumentosProyecto(found.id!).then((docs) => setDocumentos(docs));
-            }
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    init();
-    return () => {
-      isMounted = false;
-    };
-  }, [searchParams]);
-
-  const handleSelectProyecto = async (p: Proyecto) => {
-    setSelectedProyecto(p);
-    try {
-      const docs = await getDocumentosProyecto(p.id!);
-      setDocumentos(docs);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleSaveProyecto = async () => {
-    if (!selectedProyecto || !selectedProyecto.id) return;
-    setIsSaving(true);
-    try {
-      await updateProyecto(selectedProyecto.id, selectedProyecto);
-      toast.success("Proyecto actualizado correctamente");
-      const updatedList = await loadProyectos();
-      // Actualizar el seleccionado en memoria
-      const fresh = updatedList.find(p => p.id === selectedProyecto.id);
-      if (fresh) setSelectedProyecto(fresh);
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al guardar cambios del proyecto");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSaveDocumento = async (docData: Partial<DocumentoOperativo>) => {
-    if (!selectedProyecto || !selectedProyecto.id) return;
-    try {
-      await saveDocumentoOperativo(selectedProyecto.id, docData);
-      const docs = await getDocumentosProyecto(selectedProyecto.id);
-      setDocumentos(docs);
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-  };
+    loadProyectos();
+  }, [loadProyectos]);
 
   const handleDeleteProyecto = async (id: string) => {
     try {
       await deleteProyecto(id);
-      toast.success("Proyecto eliminado");
+      toast.success("Proyecto eliminado correctamente");
       await loadProyectos();
-      if (selectedProyecto?.id === id) {
-        setSelectedProyecto(null);
-      }
     } catch (err) {
       console.error(err);
-      toast.error("Error al eliminar proyecto");
+      toast.error("Error al eliminar el proyecto");
+      throw err;
     }
   };
 
@@ -160,126 +83,120 @@ export const ProyectosList: React.FC = () => {
       return;
     }
 
-    const clienteSeleccionado = clientes.find((c) => c.id === nuevoClienteId);
-    const neto = Math.round(nuevoMonto / 1.19);
-    const iva = nuevoMonto - neto;
-
-    const nuevo: Partial<Proyecto> = {
-      nombre: nuevoNombre.trim(),
-      clienteId: nuevoClienteId,
-      clienteNombre: clienteSeleccionado?.nombre || "Cliente",
-      clienteRut: clienteSeleccionado?.rut,
-      clienteTelefono: clienteSeleccionado?.telefono,
-      tipoServicio: nuevoTipoServicio,
-      fase: "planificacion",
-      fechaInicio: new Date().toISOString().split("T")[0],
-      fechaEntregaComprometida: "",
-      montos: {
-        neto,
-        iva,
-        total: nuevoMonto,
-      },
-      hitosPago: [
-        {
-          id: `hito-1-${Date.now()}`,
-          titulo: "50% Anticipo de Inicio",
-          porcentaje: 50,
-          monto: Math.round(nuevoMonto * 0.5),
-          fechaEstimada: new Date().toISOString().split("T")[0],
-          estado: "pendiente",
-        },
-        {
-          id: `hito-2-${Date.now()}`,
-          titulo: "50% Contra Entrega y Conformidad",
-          porcentaje: 50,
-          monto: Math.round(nuevoMonto * 0.5),
-          fechaEstimada: "",
-          estado: "pendiente",
-        },
-      ],
-      progresoPorcentaje: 0,
-      checklist: getDefaultChecklist(nuevoTipoServicio),
-    };
-
     try {
+      setCreating(true);
+      const clienteSeleccionado = clientes.find((c) => c.id === nuevoClienteId);
+      const neto = Math.round(nuevoMonto / 1.19);
+      const iva = nuevoMonto - neto;
+
+      const nuevo: Partial<Proyecto> = {
+        nombre: nuevoNombre.trim(),
+        clienteId: nuevoClienteId,
+        clienteNombre: clienteSeleccionado?.nombre || "Cliente",
+        clienteRut: clienteSeleccionado?.rut,
+        clienteTelefono: clienteSeleccionado?.telefono,
+        clienteEmail: clienteSeleccionado?.email,
+        tipoServicio: nuevoTipoServicio,
+        fase: "planificacion",
+        fechaInicio: new Date().toISOString().split("T")[0],
+        fechaEntregaComprometida: "",
+        montos: {
+          neto,
+          iva,
+          total: nuevoMonto,
+        },
+        hitosPago: [
+          {
+            id: `hito-1-${Date.now()}`,
+            titulo: "50% Anticipo de Inicio",
+            porcentaje: 50,
+            monto: Math.round(nuevoMonto * 0.5),
+            fechaEstimada: new Date().toISOString().split("T")[0],
+            estado: "pendiente",
+          },
+          {
+            id: `hito-2-${Date.now()}`,
+            titulo: "50% Contra Entrega y Conformidad",
+            porcentaje: 50,
+            monto: Math.round(nuevoMonto * 0.5),
+            fechaEstimada: "",
+            estado: "pendiente",
+          },
+        ],
+        progresoPorcentaje: 0,
+        checklist: getDefaultChecklist(nuevoTipoServicio),
+        alcanceItems: [
+          `Despliegue operativo y puesta en marcha de ${nuevoNombre.trim()}`,
+          "Pruebas de calidad y aseguramiento en ambiente de producción",
+          "Entrega de credenciales maestras y acta de garantía"
+        ],
+        slaDetalle: "Respuesta en < 4 horas para fallas críticas. Cobertura de garantía estándar.",
+        garantia: {
+          diasGarantia: 60,
+          fechaInicio: new Date().toISOString().split("T")[0],
+          fechaFin: "",
+          alcance: "Corrección prioritaria sin costo de errores de código o servidor.",
+          exclusiones: "No cubre cambios de código no autorizados ni fallos ajenos a la infraestructura.",
+          contactoEmergencias: "Mesa de Soporte Hoja SpA • contacto@hojaspa.cl",
+        },
+      };
+
       const res = await saveProyecto(nuevo);
       toast.success("Proyecto creado con éxito");
       setIsCreateOpen(false);
       setNuevoNombre("");
-      const list = await loadProyectos();
-      const creado = list.find((p) => p.id === res.id);
-      if (creado) {
-        setSelectedProyecto(creado);
-        setDocumentos([]);
+
+      // Redirigir a la página dedicada del proyecto recién creado
+      if (res?.id) {
+        router.push(`/proyectos/${res.id}`);
+      } else {
+        await loadProyectos();
       }
     } catch (err) {
       console.error(err);
-      toast.error("Error al crear proyecto");
+      toast.error("Error al crear el proyecto");
+    } finally {
+      setCreating(false);
     }
   };
 
   return (
-    <>
+    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
       <ProyectosListView
         proyectos={proyectos}
-        search={search}
-        setSearch={setSearch}
+        clientes={clientes}
         onNew={() => setIsCreateOpen(true)}
-        onSelect={handleSelectProyecto}
         onDelete={handleDeleteProyecto}
         loading={loading}
       />
 
-      {/* Side Panel Sheet para Detalle y Gestión del Proyecto */}
-      <Sheet open={!!selectedProyecto} onOpenChange={(open) => !open && setSelectedProyecto(null)}>
-        <SheetContent 
-          side="right" 
-          className="!w-screen sm:!w-[80vw] sm:!max-w-[1200px] p-0 border-none shadow-2xl overflow-hidden flex flex-col [&>button]:hidden"
-        >
-          {selectedProyecto && (
-            <ProyectoDetailView
-              proyecto={selectedProyecto}
-              setProyecto={setSelectedProyecto}
-              documentos={documentos}
-              onSave={handleSaveProyecto}
-              onSaveDocumento={handleSaveDocumento}
-              onClose={() => setSelectedProyecto(null)}
-              isSaving={isSaving}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* Modal para Crear Proyecto Manual */}
+      {/* MODAL PARA CREAR NUEVO PROYECTO */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[500px] border border-white/10 bg-card shadow-2xl">
+        <DialogContent className="sm:max-w-[500px] bg-slate-950 border border-white/15 text-slate-100 rounded-2xl shadow-2xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">Nuevo Proyecto</DialogTitle>
+            <DialogTitle className="text-lg font-black text-white">Nuevo Proyecto</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Nombre del Proyecto</Label>
+              <Label className="text-xs font-bold text-slate-300">Nombre del Proyecto</Label>
               <Input
                 value={nuevoNombre}
                 onChange={(e) => setNuevoNombre(e.target.value)}
-                placeholder="Ej. Rediseño Web & Plataforma SaaS"
-                className="bg-muted/40 border-white/10 h-11 rounded-xl text-xs font-bold"
+                placeholder="Ej: Desarrollo Web Corporativa & Portal Clientes"
+                className="bg-slate-900 border-white/15 text-white text-xs h-10 rounded-xl"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Cliente Asignado</Label>
-              <Select 
-                value={nuevoClienteId} 
-                onValueChange={(val) => { if (val) setNuevoClienteId(val); }}
-              >
-                <SelectTrigger className="bg-muted/40 border-white/10 h-11 rounded-xl text-xs font-bold">
-                  <SelectValue placeholder="Selecciona un cliente..." />
+              <Label className="text-xs font-bold text-slate-300">Cliente Mandante</Label>
+              <Select value={nuevoClienteId} onValueChange={(val) => setNuevoClienteId(val || "")}>
+                <SelectTrigger className="bg-slate-900 border-white/15 text-white text-xs h-10 rounded-xl">
+                  <SelectValue placeholder="Selecciona un cliente registrado..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-slate-900 border-white/15 text-white max-h-56">
                   {clientes.map((c) => (
-                    <SelectItem key={c.id} value={c.id!}>
+                    <SelectItem key={c.id} value={c.id!} className="text-xs">
                       {c.nombre} {c.rut ? `(${c.rut})` : ""}
                     </SelectItem>
                   ))}
@@ -287,49 +204,58 @@ export const ProyectosList: React.FC = () => {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Tipo de Servicio</Label>
-              <Select 
-                value={nuevoTipoServicio} 
-                onValueChange={(val) => { if (val) setNuevoTipoServicio(val as Proyecto["tipoServicio"]); }}
-              >
-                <SelectTrigger className="bg-muted/40 border-white/10 h-11 rounded-xl text-xs font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desarrollo_web">🌐 Desarrollo Web</SelectItem>
-                  <SelectItem value="soporte_nube">☁️ Soporte Nube / DevOps</SelectItem>
-                  <SelectItem value="ciberseguridad">🛡️ Ciberseguridad</SelectItem>
-                  <SelectItem value="inventario_hardware">🖥️ Hardware e Inventario</SelectItem>
-                  <SelectItem value="consultoria">📋 Consultoría</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-300">Tipo de Servicio</Label>
+                <Select 
+                  value={nuevoTipoServicio} 
+                  onValueChange={(val) => val && setNuevoTipoServicio(val as Proyecto["tipoServicio"])}
+                >
+                  <SelectTrigger className="bg-slate-900 border-white/15 text-white text-xs h-10 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/15 text-white">
+                    <SelectItem value="desarrollo_web" className="text-xs">Desarrollo Web & Software</SelectItem>
+                    <SelectItem value="soporte_nube" className="text-xs">Soporte Nube & Hosting</SelectItem>
+                    <SelectItem value="ciberseguridad" className="text-xs">Ciberseguridad</SelectItem>
+                    <SelectItem value="inventario_hardware" className="text-xs">Hardware</SelectItem>
+                    <SelectItem value="consultoria" className="text-xs">Consultoría TI</SelectItem>
+                    <SelectItem value="otro" className="text-xs">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Monto Total Pactado (CLP con IVA)</Label>
-              <Input
-                type="number"
-                value={nuevoMonto}
-                onChange={(e) => setNuevoMonto(Number(e.target.value))}
-                className="bg-muted/40 border-white/10 h-11 rounded-xl text-xs font-bold"
-              />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-300">Monto Total ($ CLP)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={nuevoMonto}
+                  onChange={(e) => setNuevoMonto(parseFloat(e.target.value) || 0)}
+                  className="bg-slate-900 border-white/15 text-white font-mono text-xs h-10 rounded-xl font-bold"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => setIsCreateOpen(false)}>
+          <DialogFooter className="border-t border-white/10 pt-4 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateOpen(false)}
+              className="bg-white/5 border-white/15 text-slate-300 text-xs h-10 rounded-xl"
+            >
               Cancelar
             </Button>
             <Button
               onClick={handleCreateManual}
-              className="bg-primary text-primary-foreground font-black text-xs rounded-xl"
+              disabled={creating}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs h-10 rounded-xl px-5"
             >
-              Crear Proyecto
+              {creating ? "Creando..." : "Crear Proyecto e Ingresar"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };

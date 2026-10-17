@@ -31,21 +31,15 @@ export const navItems = [
     badge: null,
   },
   {
-    label: "Prospección",
-    href: "/prospeccion",
-    icon: Flame,
-    badge: "🔥",
+    label: "Clientes",
+    href: "/clientes",
+    icon: Users,
+    badge: "CRM",
   },
   {
     label: "Presupuestos",
     href: "/presupuestos",
     icon: FileText,
-    badge: null,
-  },
-  {
-    label: "Clientes",
-    href: "/clientes",
-    icon: Users,
     badge: null,
   },
   {
@@ -55,7 +49,7 @@ export const navItems = [
     badge: null,
   },
   {
-    label: "Suscripciones",
+    label: "Servicios Recurrentes",
     href: "/suscripciones",
     icon: Server,
     badge: null,
@@ -108,55 +102,113 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   return (
     <TooltipProvider delay={150}>
       <aside
-        className={`hidden md:flex fixed top-0 left-0 z-40 h-screen select-none transition-all duration-300 ease-in-out flex-col justify-between border-r border-white/10 bg-background/80 dark:bg-slate-950/80 backdrop-blur-2xl shadow-[10px_0_30px_rgba(0,0,0,0.15)] ${
+        className={`hidden md:flex fixed top-0 left-0 z-40 h-screen select-none transition-all duration-300 ease-in-out flex-col justify-between border-r border-white/10 bg-background/95 dark:bg-slate-950/95 backdrop-blur-md shadow-[10px_0_30px_rgba(0,0,0,0.15)] ${
           expanded ? "w-64" : "w-16"
         }`}
       >
         {/* Top Header & Expand Toggle */}
         <div className="flex flex-col">
-          <div className="flex h-16 items-center justify-between px-3.5 border-b border-white/10">
-            {expanded ? (
-              <div className="flex items-center gap-2 overflow-hidden pl-1">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#2e3c7e] to-[#abaafd] text-white shadow-md">
-                  <Sparkles className="h-4 w-4" />
+          {expanded ? (
+            <div className="flex h-16 items-center justify-between px-3.5 border-b border-white/10">
+              <div className="flex items-center gap-2.5 overflow-hidden pl-1">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 p-1.5 shadow-md">
+                  <img 
+                    src="/favicon.ico" 
+                    alt="Logo Hoja SpA" 
+                    className="h-full w-full object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).src = "/logo.png"; }}
+                  />
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs font-black tracking-tight text-foreground truncate">
                     Hoja SpA
                   </span>
-                  <span className="text-[9px] font-bold text-primary uppercase tracking-widest leading-none">
+                  <span className="text-[9px] font-bold text-primary uppercase tracking-widest leading-none mt-0.5 truncate">
                     Operaciones
                   </span>
                 </div>
               </div>
-            ) : (
-              <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#2e3c7e] to-[#abaafd] text-white shadow-md">
-                <Sparkles className="h-4 w-4" />
-              </div>
-            )}
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleExpand}
-              className="h-8 w-8 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all shrink-0"
-              title={expanded ? "Colapsar barra lateral" : "Expandir barra lateral"}
-            >
-              {expanded ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleExpand}
+                className="h-8 w-8 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
+                title="Colapsar barra lateral"
+              >
                 <ChevronLeft className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+              </Button>
+            </div>
+          ) : (
+            <div className="flex h-16 items-center justify-center border-b border-white/10 w-full px-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={toggleExpand}
+                      aria-label="Expandir barra lateral"
+                      className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 p-1.5 shadow-md hover:bg-white/10 hover:border-primary/50 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <img 
+                        src="/favicon.ico" 
+                        alt="Logo Hoja SpA" 
+                        className="h-full w-full object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).src = "/logo.png"; }}
+                      />
+                      <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-slate-950 shadow-xs group-hover:scale-110 transition-transform">
+                        <ChevronRight className="h-2.5 w-2.5 text-slate-950 stroke-[3]" />
+                      </span>
+                    </button>
+                  }
+                />
+                <TooltipContent side="right" className="font-bold text-xs bg-slate-900 border-white/20 text-white shadow-xl">
+                  Expandir barra lateral
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
 
           {/* Navigation Links */}
-          <nav className="flex flex-col gap-1.5 p-2 pt-4">
+          <nav className={`flex flex-col gap-1.5 pt-4 ${expanded ? "p-2" : "items-center px-0"}`}>
             {navItems.map((item) => {
               const active = isCurrentRoute(item.href);
               const Icon = item.icon;
 
-              const content = (
+              if (!expanded) {
+                return (
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger
+                      render={
+                        <Link
+                          href={item.href}
+                          className={`group relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                            active
+                              ? "bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/40 shadow-md shadow-primary/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          }`}
+                        >
+                          {/* Active Indicator Bar on left edge of sidebar */}
+                          {active && (
+                            <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-primary shadow-[0_0_10px_#abaafd]" />
+                          )}
+
+                          <Icon
+                            className={`h-5 w-5 transition-transform group-hover:scale-110 ${
+                              active ? "text-primary drop-shadow-[0_0_8px_rgba(171,170,253,0.5)]" : "text-muted-foreground"
+                            }`}
+                          />
+                        </Link>
+                      }
+                    />
+                    <TooltipContent side="right" className="font-bold text-xs bg-slate-900 border-white/20 text-white shadow-xl">
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -177,32 +229,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                     }`}
                   />
                   
-                  {expanded && (
-                    <span className="truncate tracking-tight font-black">
-                      {item.label}
-                    </span>
-                  )}
+                  <span className="truncate tracking-tight font-black">
+                    {item.label}
+                  </span>
                 </Link>
               );
-
-              if (!expanded) {
-                return (
-                  <Tooltip key={item.href}>
-                    <TooltipTrigger className="w-full">{content}</TooltipTrigger>
-                    <TooltipContent side="right" className="font-bold text-xs bg-slate-900 border-white/20 text-white shadow-xl">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return content;
             })}
           </nav>
         </div>
 
         {/* Footer info in sidebar */}
-        <div className="p-3 border-t border-white/10 text-center">
+        <div className="p-3 border-t border-white/10 text-center flex items-center justify-center">
           {expanded ? (
             <div className="flex flex-col items-center">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
@@ -213,7 +250,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               </p>
             </div>
           ) : (
-            <span className="text-[8px] font-black font-mono text-muted-foreground/40">
+            <span className="text-[9px] font-black font-mono text-muted-foreground/50">
               v2
             </span>
           )}

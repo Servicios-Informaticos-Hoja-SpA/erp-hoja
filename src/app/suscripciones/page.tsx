@@ -1,8 +1,8 @@
 import { SubscriptionsList } from "@/features/subscriptions/subscriptions-list";
 
 export const metadata = {
-  title: "Servicios Recurrentes & Hosting | Hoja SpA",
-  description: "Control de suscripciones, cuentas cPanel, Vercel y renovaciones periódicas",
+  title: "Servicios Recurrentes & Gastos de Empresa | Hoja SpA",
+  description: "Gestión de costos fijos, hosting propio, comisiones de tarjetas bancarias, licencias SaaS y renovaciones periódicas",
 };
 
 export default function SuscripcionesPage() {

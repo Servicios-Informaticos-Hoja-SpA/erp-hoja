@@ -1,57 +1,56 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
   Plus, 
   Search, 
-  Edit3, 
-  Calendar, 
   Eye,
   Download,
-  ArrowLeft,
-  LogOut,
   AlertTriangle,
-  BellOff,
   Briefcase,
   Clock,
+  Pencil,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  FileText,
+  Loader2,
   Sparkles,
-  Share2,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  ExternalLink,
-  Layers
+  Save
 } from "lucide-react";
-import { toast } from "sonner";
-import { Presupuesto, PresupuestoEstado, Cliente } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
+import { Presupuesto, PresupuestoEstado, Cliente, FechaRegistro, PresupuestoSeguimiento } from "@/lib/types";
 import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Table, 
+  TableHeader, 
+  TableRow, 
+  TableHead, 
+  TableBody, 
+  TableCell 
+} from "@/components/ui/table";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { WhatsAppButton } from "@/components/common/whatsapp-button";
-import { PresupuestosListSkeleton } from "@/components/common/skeletons";
-import { useRouter } from "next/navigation";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PresupuestoListViewProps {
   presupuestos: Presupuesto[];
@@ -66,9 +65,12 @@ interface PresupuestoListViewProps {
   onUpdateEstado: (p: Presupuesto, estado: PresupuestoEstado) => Promise<void>;
   onDismissAlert: (p: Presupuesto) => Promise<void>;
   onRegisterFollowUp: (p: Presupuesto, nota: string, tipo?: string) => Promise<void>;
-  onLogout: () => void;
+  onLogout?: () => void;
   loading: boolean;
 }
+
+type SortColumn = "numero" | "cliente_nombre" | "createdAt" | "total" | "estado";
+type SortDirection = "asc" | "desc";
 
 export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
   presupuestos,
@@ -81,29 +83,30 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
   onDownload,
   onCreateProject,
   onUpdateEstado,
-  onDismissAlert,
   onRegisterFollowUp,
-  onLogout,
   loading
 }) => {
-  const router = useRouter();
   const [filterEstado, setFilterEstado] = useState<string>("todos");
-  const [expandedPresupuestoId, setExpandedPresupuestoId] = useState<string | null>(null);
+  const [filterMoneda, setFilterMoneda] = useState<string>("todas");
+  const [filterDestinatario, setFilterDestinatario] = useState<string>("todos");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
-  // Modal para registrar seguimiento
+  // Modal para registrar y visualizar seguimiento comercial
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [selectedForFollowUp, setSelectedForFollowUp] = useState<Presupuesto | null>(null);
   const [followUpNota, setFollowUpNota] = useState("");
   const [followUpTipo, setFollowUpTipo] = useState<string>("llamada");
 
-  const formatCurrency = (val: number = 0) => 
-    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val);
-
-  const toggleExpand = (id: string) => {
-    setExpandedPresupuestoId((prev) => (prev === id ? null : id));
+  const formatCurrency = (val: number = 0, moneda: string = "CLP") => {
+    if (moneda === "UF") {
+      return `${val.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`;
+    }
+    return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(val);
   };
 
-  // Calcula si un presupuesto tiene alerta activa de sin respuesta
   const getAlertInfo = (p: Presupuesto) => {
     const isEnviado = p.estado === "enviado" || p.estado === "emitido";
     if (!isEnviado || p.alertaSilenciada || p.proyecto_id) return null;
@@ -129,54 +132,170 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
     return null;
   };
 
-  // Contadores
-  const totalCount = presupuestos.length;
-  const alertasCount = presupuestos.filter(p => !!getAlertInfo(p)).length;
-  const enviadosCount = presupuestos.filter(p => p.estado === "enviado" || p.estado === "emitido").length;
-  const negociacionCount = presupuestos.filter(p => p.estado === "en_negociacion").length;
-  const aprobadosCount = presupuestos.filter(p => p.estado === "aprobado").length;
-  const borradoresCount = presupuestos.filter(p => !p.estado || p.estado === "borrador").length;
-  const rechazadosCount = presupuestos.filter(p => p.estado === "rechazado").length;
+  // Contadores memoizados con todas las opciones disponibles
+  const { 
+    totalCount, 
+    alertasCount, 
+    enviadosCount, 
+    negociacionCount, 
+    aprobadosCount, 
+    borradoresCount, 
+    rechazadosCount,
+    vencidosCount,
+    conProyectoCount
+  } = useMemo(() => {
+    let alertas = 0;
+    let enviados = 0;
+    let negociacion = 0;
+    let aprobados = 0;
+    let borradores = 0;
+    let rechazados = 0;
+    let vencidos = 0;
+    let conProyecto = 0;
 
-  // Filtrado multi-campo inteligente
-  const filtered = presupuestos.filter((p) => {
+    for (const p of presupuestos) {
+      if (getAlertInfo(p)) alertas++;
+      if (p.proyecto_id) conProyecto++;
+
+      if (p.estado === "vencido") vencidos++;
+      else if (p.estado === "enviado" || p.estado === "emitido") enviados++;
+      else if (p.estado === "en_negociacion") negociacion++;
+      else if (p.estado === "aprobado") aprobados++;
+      else if (p.estado === "rechazado") rechazados++;
+      else if (!p.estado || p.estado === "borrador") borradores++;
+    }
+
+    return {
+      totalCount: presupuestos.length,
+      alertasCount: alertas,
+      enviadosCount: enviados,
+      negociacionCount: negociacion,
+      aprobadosCount: aprobados,
+      borradoresCount: borradores,
+      rechazadosCount: rechazados,
+      vencidosCount: vencidos,
+      conProyectoCount: conProyecto,
+    };
+  }, [presupuestos]);
+
+  // Filtrado memoizado multi-campo flexible y preciso
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      p.cliente_nombre.toLowerCase().includes(q) ||
-      p.numero.toLowerCase().includes(q) ||
-      `cot-${p.numero.toLowerCase()}`.includes(q) ||
-      (p.nombre_proyecto || "").toLowerCase().includes(q) ||
-      (p.descripcion_proyecto || "").toLowerCase().includes(q) ||
-      (p.estado || "").toLowerCase().includes(q) ||
-      (p.totales?.total?.toString() || "").includes(q) ||
-      (p.items || []).some((item) => item.descripcion.toLowerCase().includes(q));
 
-    if (!matchesSearch) return false;
+    return presupuestos.filter((p) => {
+      const matchesSearch =
+        !q ||
+        (p.cliente_nombre || "").toLowerCase().includes(q) ||
+        (p.numero || "").toLowerCase().includes(q) ||
+        `cot-${(p.numero || "").toLowerCase()}`.includes(q) ||
+        (p.nombre_proyecto || "").toLowerCase().includes(q) ||
+        (p.descripcion_proyecto || "").toLowerCase().includes(q) ||
+        (p.estado || "").toLowerCase().includes(q) ||
+        (p.totales?.total?.toString() || "").includes(q) ||
+        (p.items || []).some((item) => item.descripcion.toLowerCase().includes(q));
 
-    if (filterEstado === "todos") return true;
-    if (filterEstado === "alertas") return !!getAlertInfo(p);
-    if (filterEstado === "enviado") return p.estado === "enviado" || p.estado === "emitido";
-    if (filterEstado === "borrador") return !p.estado || p.estado === "borrador";
-    return p.estado === filterEstado;
-  });
+      if (!matchesSearch) return false;
+
+      // 1. Filtro por Moneda
+      if (filterMoneda !== "todas") {
+        const mon = p.moneda || "CLP";
+        if (mon !== filterMoneda) return false;
+      }
+
+      // 2. Filtro por Destinatario (Cliente vs Prospecto)
+      if (filterDestinatario !== "todos") {
+        const cl = clientes.find(c => c.id === p.cliente_id || c.nombre === p.cliente_nombre);
+        const tipoReg = cl?.tipo_registro || (cl?.estado === "prospecto" ? "prospecto" : "cliente");
+        if (filterDestinatario === "cliente" && tipoReg !== "cliente") return false;
+        if (filterDestinatario === "prospecto" && tipoReg !== "prospecto") return false;
+      }
+
+      // 3. Filtro por Estado Comercial
+      if (filterEstado === "todos") return true;
+      if (filterEstado === "alertas") return !!getAlertInfo(p);
+      if (filterEstado === "con_proyecto") return !!p.proyecto_id;
+      if (filterEstado === "enviado") return p.estado === "enviado" || p.estado === "emitido";
+      if (filterEstado === "borrador") return !p.estado || p.estado === "borrador";
+      return p.estado === filterEstado;
+    });
+  }, [presupuestos, search, filterEstado, filterMoneda, filterDestinatario, clientes]);
+
+  const getTimestamp = (val?: FechaRegistro | string) => {
+    if (!val) return 0;
+    if (typeof val === "string") return new Date(val).getTime() || 0;
+    if (typeof val === "object" && "seconds" in val) return val.seconds * 1000;
+    return 0;
+  };
+
+  // Ordenamiento memoizado
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortColumn === "numero") {
+        const numA = parseInt(a.numero.replace(/\D/g, "") || "0", 10);
+        const numB = parseInt(b.numero.replace(/\D/g, "") || "0", 10);
+        comparison = numA - numB;
+      } else if (sortColumn === "cliente_nombre") {
+        comparison = (a.cliente_nombre || "").localeCompare(b.cliente_nombre || "");
+      } else if (sortColumn === "createdAt") {
+        const aDate = getTimestamp(a.createdAt || a.fecha);
+        const bDate = getTimestamp(b.createdAt || b.fecha);
+        comparison = aDate - bDate;
+      } else if (sortColumn === "total") {
+        const totalA = a.totales?.total || 0;
+        const totalB = b.totales?.total || 0;
+        comparison = totalA - totalB;
+      } else if (sortColumn === "estado") {
+        const estA = a.estado || "borrador";
+        const estB = b.estado || "borrador";
+        comparison = estA.localeCompare(estB);
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filtered, sortColumn, sortDirection]);
+
+  // Paginación memoizada
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const paginated = useMemo(() => {
+    return sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [sorted, currentPage, pageSize]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const renderSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 text-muted-foreground/60 ml-1 inline-block" />;
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUp className="h-3 w-3 text-primary ml-1 inline-block" />
+    ) : (
+      <ArrowDown className="h-3 w-3 text-primary ml-1 inline-block" />
+    );
+  };
 
   const getEstadoBadgeStyle = (estado?: PresupuestoEstado) => {
     switch (estado) {
       case "enviado":
       case "emitido":
-        return "bg-amber-500/20 text-amber-300 border-amber-500/50";
+        return "bg-amber-500/20 text-amber-300 border-amber-500/40";
       case "en_negociacion":
-        return "bg-sky-500/20 text-sky-300 border-sky-500/50";
+        return "bg-sky-500/20 text-sky-300 border-sky-500/40";
       case "aprobado":
-        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/50";
+        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
       case "rechazado":
-        return "bg-rose-500/20 text-rose-300 border-rose-500/50";
+        return "bg-rose-500/20 text-rose-300 border-rose-500/40";
       case "vencido":
-        return "bg-zinc-800 text-zinc-300 border-zinc-700";
+        return "bg-zinc-800 text-zinc-400 border-zinc-700";
       case "borrador":
       default:
-        return "bg-slate-800 text-slate-300 border-slate-600";
+        return "bg-slate-800 text-slate-300 border-slate-700";
     }
   };
 
@@ -184,9 +303,9 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
     switch (estado) {
       case "enviado":
       case "emitido":
-        return "📤 Enviado al Cliente";
+        return "📤 Enviado";
       case "en_negociacion":
-        return "💬 En Negociación";
+        return "💬 Negociación";
       case "aprobado":
         return "✅ Aprobado";
       case "rechazado":
@@ -195,7 +314,58 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
         return "⏸️ Vencido";
       case "borrador":
       default:
-        return "📝 Borrador Interno";
+        return "📝 Borrador";
+    }
+  };
+
+  const [isSavingFollowUp, setIsSavingFollowUp] = useState(false);
+
+  const getSeguimientoBadge = (tipo?: string) => {
+    switch (tipo) {
+      case "llamada":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      case "whatsapp":
+        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+      case "correo":
+        return "bg-sky-500/20 text-sky-300 border-sky-500/30";
+      case "reunion":
+        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
+      case "nota":
+      default:
+        return "bg-slate-700/40 text-slate-300 border-slate-600/40";
+    }
+  };
+
+  const getSeguimientoLabel = (tipo?: string) => {
+    switch (tipo) {
+      case "llamada":
+        return "📞 Llamada";
+      case "whatsapp":
+        return "💬 WhatsApp";
+      case "correo":
+        return "✉️ Correo";
+      case "reunion":
+        return "🤝 Reunión";
+      case "nota":
+      default:
+        return "📝 Nota Interna";
+    }
+  };
+
+  const formatFollowUpDate = (fechaStr?: string) => {
+    if (!fechaStr) return "";
+    try {
+      const d = new Date(fechaStr);
+      if (isNaN(d.getTime())) return fechaStr;
+      return d.toLocaleString("es-CL", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return fechaStr;
     }
   };
 
@@ -208,648 +378,784 @@ export const PresupuestoListView: React.FC<PresupuestoListViewProps> = ({
 
   const handleSaveFollowUp = async () => {
     if (!selectedForFollowUp || !followUpNota.trim()) return;
-    await onRegisterFollowUp(selectedForFollowUp, followUpNota, followUpTipo);
-    setFollowUpModalOpen(false);
-    setSelectedForFollowUp(null);
+    setIsSavingFollowUp(true);
+    try {
+      await onRegisterFollowUp(selectedForFollowUp, followUpNota, followUpTipo);
+      const nuevo: PresupuestoSeguimiento = {
+        fecha: new Date().toISOString(),
+        nota: followUpNota.trim(),
+        tipo: followUpTipo as any,
+        autor: "Tú",
+      };
+      setSelectedForFollowUp(prev => prev ? {
+        ...prev,
+        historialSeguimientos: [...(prev.historialSeguimientos || []), nuevo],
+        ultimoSeguimiento: nuevo,
+      } : null);
+      setFollowUpNota("");
+    } finally {
+      setIsSavingFollowUp(false);
+    }
   };
 
   return (
-    <TooltipProvider>
-      <div className="flex min-h-screen flex-col bg-background px-3 py-6 sm:px-8 sm:py-10 max-w-7xl mx-auto w-full">
+    <TooltipProvider delay={150}>
+      <div className="flex flex-col min-h-full px-3 py-6 sm:px-6 sm:py-8 max-w-7xl mx-auto space-y-6 w-full">
         
-        {/* Encabezado Principal */}
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 border-b border-white/10 pb-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => router.push('/')} 
-              className="rounded-xl border-white/15 bg-card text-foreground hover:bg-muted/70 shrink-0 h-10 w-10 sm:h-11 sm:w-11 shadow-sm"
-              title="Volver al menú principal"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl sm:text-4xl font-black tracking-tight text-foreground leading-none">
-                Gestión de Presupuestos
-              </h1>
-              <p className="text-[11px] sm:text-sm text-slate-400 font-medium mt-1">
-                Ciclo comercial, seguimiento de propuestas y conversión a proyectos
-              </p>
-            </div>
+        {/* 1. Header Principal Limpio y Ejecutivo */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+              Presupuestos & Cotizaciones
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+              Directorio de propuestas comerciales, control de estados y conversión a proyectos.
+            </p>
           </div>
 
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={onLogout}
-              className="gap-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors font-bold px-3 h-11 rounded-xl text-xs"
-            >
-              <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar Sesión</span>
-            </Button>
-
+          <div className="flex items-center gap-3">
             <Button 
               onClick={onNew} 
-              className="flex-1 sm:flex-initial gap-2 rounded-xl px-5 sm:px-7 h-11 text-xs sm:text-sm font-black shadow-lg shadow-primary/25 bg-primary text-primary-foreground hover:opacity-90 hover:scale-[1.02] transition-all justify-center"
+              className="rounded-2xl px-5 py-2.5 h-11 bg-primary text-primary-foreground font-black shadow-xl shadow-primary/20 hover:scale-105 transition-all gap-2 text-xs sm:text-sm"
             >
-              <Plus className="h-4 w-4 sm:h-5 sm:w-5" /> <span>Emitir Presupuesto</span>
+              <Plus className="h-4 w-4" /> Nuevo Presupuesto
             </Button>
           </div>
         </div>
 
-        {/* Buscador de Alto Contraste con Limpieza y Contador */}
-        <div className="relative mb-4 sm:mb-6">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <Input 
-            placeholder="Buscar por cliente, N° cotización, proyecto, ítems o monto..." 
-            className="pl-12 pr-24 h-12 rounded-xl bg-card border-2 border-white/15 focus-visible:border-primary focus-visible:ring-0 text-foreground font-medium text-sm shadow-inner placeholder:text-slate-500"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 px-2 py-1 rounded-lg"
-            >
-              Limpiar
-            </button>
-          )}
-        </div>
+        {/* 2. Buscador y Filtros Dinámicos */}
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Buscar por cliente, N° cotización, proyecto, ítems o monto..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-11 pr-24 py-3 sm:py-5 text-xs sm:text-sm rounded-2xl bg-card border border-white/10 focus-visible:border-primary shadow-sm"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 px-2 py-1 rounded-lg"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
 
-        {/* Pastillas de Filtro por Ciclo de Vida con scroll táctil en móvil */}
-        <div className="flex overflow-x-auto sm:flex-wrap items-center gap-1.5 sm:gap-2 mb-6 sm:mb-8 pb-2 sm:pb-0 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
-          <button
-            onClick={() => setFilterEstado("todos")}
-            className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-              filterEstado === "todos"
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                : "bg-card border border-white/15 text-slate-300 hover:bg-white/5"
-            }`}
-          >
-            Todos {loading ? "(...)" : `(${totalCount})`}
-          </button>
+          {/* Pastillas de Filtro por Estado */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-bold pb-1 scrollbar-none flex-wrap">
+              <button
+                onClick={() => { setFilterEstado("todos"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "todos"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                Todos ({totalCount})
+              </button>
 
-          {loading ? (
-            <div className="h-8 w-28 rounded-xl bg-slate-800/80 animate-pulse inline-block" />
-          ) : alertasCount > 0 ? (
-            <button
-              onClick={() => setFilterEstado("alertas")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-                filterEstado === "alertas"
-                  ? "bg-rose-500 text-white shadow-md shadow-rose-500/25"
-                  : "bg-rose-500/15 border border-rose-500/40 text-rose-300 hover:bg-rose-500/25"
-              }`}
-            >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <span>Sin Respuesta ({alertasCount})</span>
-            </button>
-          ) : null}
+              <button
+                onClick={() => { setFilterEstado("borrador"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "borrador"
+                    ? "bg-slate-700 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                📝 Borradores ({borradoresCount})
+              </button>
 
-          <button
-            onClick={() => setFilterEstado("enviado")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-              filterEstado === "enviado"
-                ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                : "bg-card border border-white/15 text-amber-300 hover:bg-white/5"
-            }`}
-          >
-            📤 Enviados {loading ? "(...)" : `(${enviadosCount})`}
-          </button>
+              <button
+                onClick={() => { setFilterEstado("enviado"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "enviado"
+                    ? "bg-amber-500 text-slate-950 shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                📤 Enviados ({enviadosCount})
+              </button>
 
-          <button
-            onClick={() => setFilterEstado("en_negociacion")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-              filterEstado === "en_negociacion"
-                ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                : "bg-card border border-white/15 text-sky-300 hover:bg-white/5"
-            }`}
-          >
-            💬 En Negociación {loading ? "(...)" : `(${negociacionCount})`}
-          </button>
+              <button
+                onClick={() => { setFilterEstado("en_negociacion"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "en_negociacion"
+                    ? "bg-sky-500 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                💬 En Negociación ({negociacionCount})
+              </button>
 
-          <button
-            onClick={() => setFilterEstado("aprobado")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-              filterEstado === "aprobado"
-                ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                : "bg-card border border-white/15 text-emerald-300 hover:bg-white/5"
-            }`}
-          >
-            ✅ Aprobados {loading ? "(...)" : `(${aprobadosCount})`}
-          </button>
+              <button
+                onClick={() => { setFilterEstado("aprobado"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "aprobado"
+                    ? "bg-emerald-500 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                ✅ Aprobados ({aprobadosCount})
+              </button>
 
-          <button
-            onClick={() => setFilterEstado("borrador")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-              filterEstado === "borrador"
-                ? "bg-slate-700 text-white shadow-md"
-                : "bg-card border border-white/15 text-slate-400 hover:bg-white/5"
-            }`}
-          >
-            📝 Borradores {loading ? "(...)" : `(${borradoresCount})`}
-          </button>
+              <button
+                onClick={() => { setFilterEstado("rechazado"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "rechazado"
+                    ? "bg-rose-600 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                ❌ Rechazados ({rechazadosCount})
+              </button>
 
-          {loading ? null : rechazadosCount > 0 ? (
-            <button
-              onClick={() => setFilterEstado("rechazado")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-                filterEstado === "rechazado"
-                  ? "bg-rose-700 text-white shadow-md"
-                  : "bg-card border border-white/15 text-rose-400 hover:bg-white/5"
-              }`}
-            >
-              ❌ Rechazados ({rechazadosCount})
-            </button>
-          ) : null}
-        </div>
+              <button
+                onClick={() => { setFilterEstado("vencido"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "vencido"
+                    ? "bg-zinc-700 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                ⏸️ Vencidos ({vencidosCount})
+              </button>
 
-        {/* Listado de Tarjetas de Presupuesto */}
-        <div className="space-y-4">
-          {loading ? (
-            <PresupuestosListSkeleton count={4} />
-          ) : filtered.length === 0 ? (
-            <div className="py-20 text-center text-slate-400 italic font-medium border-2 border-dashed border-white/10 rounded-2xl">
-              No se encontraron presupuestos en este filtro.
-            </div>
-          ) : (
-            filtered.map((p) => {
-              const alertInfo = getAlertInfo(p);
-              const clienteObj = clientes.find((c) => c.id === p.cliente_id || c.nombre === p.cliente_nombre);
-              const clienteTelefono = clienteObj?.telefono || "";
+              <button
+                onClick={() => { setFilterEstado("con_proyecto"); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  filterEstado === "con_proyecto"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                🚀 Con Proyecto ({conProyectoCount})
+              </button>
 
-              return (
-                <Card 
-                  key={p.id} 
-                  className={`rounded-2xl border-2 transition-all bg-card/90 dark:bg-slate-900 shadow-md hover:shadow-xl ${
-                    alertInfo 
-                      ? "border-amber-500/50 hover:border-amber-500" 
-                      : p.estado === "aprobado"
-                        ? "border-emerald-500/30 hover:border-emerald-500/50"
-                        : "border-white/15 hover:border-primary/50"
+              {alertasCount > 0 && (
+                <button
+                  onClick={() => { setFilterEstado("alertas"); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                    filterEstado === "alertas"
+                      ? "bg-rose-500 text-white shadow-sm"
+                      : "bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25"
                   }`}
                 >
-                  <CardContent className="p-5 sm:p-6 space-y-4">
-                    
-                    {/* Fila Superior: N°, Versión, Estado desplegable y Precios */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="bg-primary/15 text-primary border border-primary/30 font-mono font-black text-xs px-3 py-1 rounded-xl">
-                          N° {p.numero}
-                        </span>
+                  <AlertTriangle className="h-3 w-3" />
+                  <span>Sin Respuesta ({alertasCount})</span>
+                </button>
+              )}
+            </div>
 
-                        {p.version && p.version > 1 && (
-                          <span className="bg-slate-800 text-slate-300 border border-slate-700 font-mono text-xs px-2 py-0.5 rounded-md font-bold">
-                            v{p.version}
+            {/* Barra de Filtros Secundarios y Conteo */}
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-white/5">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Selector de Moneda */}
+                <div className="w-36">
+                  <Select 
+                    value={filterMoneda} 
+                    onValueChange={(val) => { 
+                      setFilterMoneda(val || "todas"); 
+                      setCurrentPage(1); 
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-xl bg-card/80 border-white/10 text-foreground font-semibold">
+                      <SelectValue placeholder="Moneda" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/15 text-foreground text-xs font-semibold">
+                      <SelectItem value="todas">🪙 Todas Monedas</SelectItem>
+                      <SelectItem value="CLP">🇨🇱 Solo CLP ($)</SelectItem>
+                      <SelectItem value="UF">📐 Solo UF</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Selector de Destinatario */}
+                <div className="w-44">
+                  <Select 
+                    value={filterDestinatario} 
+                    onValueChange={(val) => { 
+                      setFilterDestinatario(val || "todos"); 
+                      setCurrentPage(1); 
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-xl bg-card/80 border-white/10 text-foreground font-semibold">
+                      <SelectValue placeholder="Destinatario" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/15 text-foreground text-xs font-semibold">
+                      <SelectItem value="todos">👥 Todos Destinatarios</SelectItem>
+                      <SelectItem value="cliente">🏢 Solo Clientes</SelectItem>
+                      <SelectItem value="prospecto">🎯 Solo Prospectos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Restablecer Filtros si hay alguno activo */}
+                {(filterEstado !== "todos" || filterMoneda !== "todas" || filterDestinatario !== "todos" || search) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFilterEstado("todos");
+                      setFilterMoneda("todas");
+                      setFilterDestinatario("todos");
+                      setSearch("");
+                      setCurrentPage(1);
+                    }}
+                    className="h-8 px-2.5 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl"
+                  >
+                    ✕ Restablecer Filtros
+                  </Button>
+                )}
+              </div>
+
+              <span className="text-xs font-mono font-bold text-muted-foreground">
+                Mostrando {sorted.length} de {presupuestos.length} cotizaciones
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Tabla Ejecutiva Densa, Ordenable y Paginada */}
+        <div className="rounded-3xl border border-white/10 bg-card/75 backdrop-blur-md shadow-sm overflow-hidden flex flex-col">
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+              <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-medium">Cargando propuestas comerciales...</span>
+            </div>
+          ) : sorted.length === 0 ? (
+            <div className="py-20 text-center text-muted-foreground italic text-xs">
+              No se encontraron presupuestos que coincidan con la búsqueda o filtro activo.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table className="w-full text-left text-xs">
+                <TableHeader className="bg-muted/30 border-b border-border/60">
+                  <TableRow className="hover:bg-transparent">
+                    {/* Columna N° Cotización */}
+                    <TableHead 
+                      className="font-black text-foreground py-3.5 pl-4 sm:pl-6 cursor-pointer select-none hover:text-primary transition-colors"
+                      onClick={() => handleSort("numero")}
+                    >
+                      <span className="inline-flex items-center">
+                        N° Presupuesto {renderSortIcon("numero")}
+                      </span>
+                    </TableHead>
+
+                    {/* Columna Cliente */}
+                    <TableHead 
+                      className="font-black text-foreground py-3.5 cursor-pointer select-none hover:text-primary transition-colors"
+                      onClick={() => handleSort("cliente_nombre")}
+                    >
+                      <span className="inline-flex items-center">
+                        Cliente / Solicitante {renderSortIcon("cliente_nombre")}
+                      </span>
+                    </TableHead>
+
+                    {/* Columna Proyecto / Objeto */}
+                    <TableHead className="font-black text-foreground py-3.5">
+                      Proyecto / Asunto
+                    </TableHead>
+
+                    {/* Columna Fecha */}
+                    <TableHead 
+                      className="font-black text-foreground py-3.5 cursor-pointer select-none hover:text-primary transition-colors"
+                      onClick={() => handleSort("createdAt")}
+                    >
+                      <span className="inline-flex items-center">
+                        Fecha {renderSortIcon("createdAt")}
+                      </span>
+                    </TableHead>
+
+                    {/* Columna Estado con selector rápido */}
+                    <TableHead 
+                      className="font-black text-foreground py-3.5 cursor-pointer select-none hover:text-primary transition-colors"
+                      onClick={() => handleSort("estado")}
+                    >
+                      <span className="inline-flex items-center">
+                        Estado {renderSortIcon("estado")}
+                      </span>
+                    </TableHead>
+
+                    {/* Columna Total */}
+                    <TableHead 
+                      className="font-black text-foreground py-3.5 text-right cursor-pointer select-none hover:text-primary transition-colors"
+                      onClick={() => handleSort("total")}
+                    >
+                      <span className="inline-flex items-center justify-end">
+                        Total {renderSortIcon("total")}
+                      </span>
+                    </TableHead>
+
+                    {/* Columna Acciones */}
+                    <TableHead className="font-black text-foreground py-3.5 text-right pr-4 sm:pr-6">
+                      Acciones
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {paginated.map((p) => {
+                    const alertInfo = getAlertInfo(p);
+                    const clienteObj = clientes.find((c) => c.id === p.cliente_id || c.nombre === p.cliente_nombre);
+                    const clienteTelefono = clienteObj?.telefono || "";
+                    const totalVal = p.totales?.total || 0;
+                    const moneda = p.moneda || "CLP";
+
+                    let fechaFormatted = "—";
+                    const rawDate = p.fecha || p.createdAt;
+                    if (rawDate) {
+                      try {
+                        const d = typeof rawDate === "string" 
+                          ? new Date(rawDate) 
+                          : new Date((rawDate as { seconds: number }).seconds * 1000);
+                        fechaFormatted = d.toLocaleDateString("es-CL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric"
+                        });
+                      } catch {
+                        fechaFormatted = "—";
+                      }
+                    }
+
+                    return (
+                      <TableRow 
+                        key={p.id}
+                        onClick={() => onView(p)}
+                        className={`hover:bg-muted/20 border-b border-border/40 transition-colors group cursor-pointer ${
+                          alertInfo ? "bg-amber-500/5 hover:bg-amber-500/10" : ""
+                        }`}
+                      >
+                        {/* 1. N° Presupuesto */}
+                        <TableCell className="py-3.5 pl-4 sm:pl-6">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-foreground text-xs group-hover:text-primary transition-colors">
+                              COT #{p.numero}
+                            </span>
+                            {p.version && p.version > 1 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-muted text-muted-foreground font-mono font-bold">
+                                v{p.version}
+                              </span>
+                            )}
+                            {alertInfo && (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-[11px] font-bold">
+                                  {alertInfo.diffDays} días sin respuesta desde {alertInfo.fechaRefStr}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* 2. Cliente */}
+                        <TableCell className="py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-[#2e3c7e] to-[#abaafd] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                              {(p.cliente_nombre || "C").charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-foreground block truncate">
+                                {p.cliente_nombre || "Cliente sin registrar"}
+                              </span>
+                              {clienteTelefono && (
+                                <span className="text-[11px] font-mono text-muted-foreground block truncate">
+                                  {clienteTelefono}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* 3. Proyecto / Asunto */}
+                        <TableCell className="py-3.5 max-w-[220px]">
+                          <span className="font-semibold text-foreground block truncate">
+                            {p.nombre_proyecto || p.descripcion_proyecto || "Servicios Digitales Hoja SpA"}
                           </span>
-                        )}
+                          <span className="text-[11px] text-muted-foreground block truncate">
+                            {p.items?.length || 0} ítem(s) cotizado(s)
+                          </span>
+                        </TableCell>
 
-                        {/* Selector de Estado Integrado para Gestión del Ciclo */}
-                        <div className="inline-block">
+                        {/* 4. Fecha */}
+                        <TableCell className="py-3.5 font-mono text-[11px] text-muted-foreground">
+                          {fechaFormatted}
+                        </TableCell>
+
+                        {/* 5. Estado con Selector Rápido */}
+                        <TableCell className="py-3.5" onClick={(e) => e.stopPropagation()}>
                           <Select 
                             value={p.estado || "borrador"} 
                             onValueChange={(val) => {
                               if (val) onUpdateEstado(p, val as PresupuestoEstado);
                             }}
                           >
-                            <SelectTrigger className={`h-8 rounded-xl px-3 text-xs font-black border ${getEstadoBadgeStyle(p.estado)}`}>
+                            <SelectTrigger className={`h-7 rounded-lg px-2 text-[10px] font-black border ${getEstadoBadgeStyle(p.estado)}`}>
                               <SelectValue>{getEstadoLabel(p.estado)}</SelectValue>
                             </SelectTrigger>
                             <SelectContent className="bg-slate-900 border-white/15 text-foreground font-bold">
-                              <SelectItem value="borrador">📝 Borrador Interno</SelectItem>
-                              <SelectItem value="enviado">📤 Enviado al Cliente</SelectItem>
-                              <SelectItem value="en_negociacion">💬 En Negociación / Feedback</SelectItem>
-                              <SelectItem value="aprobado">✅ Aprobado por Cliente</SelectItem>
+                              <SelectItem value="borrador">📝 Borrador</SelectItem>
+                              <SelectItem value="enviado">📤 Enviado</SelectItem>
+                              <SelectItem value="en_negociacion">💬 En Negociación</SelectItem>
+                              <SelectItem value="aprobado">✅ Aprobado</SelectItem>
                               <SelectItem value="rechazado">❌ Rechazado</SelectItem>
-                              <SelectItem value="vencido">⏸️ Vencido / Descartado</SelectItem>
+                              <SelectItem value="vencido">⏸️ Vencido</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
-                      </div>
+                        </TableCell>
 
-                      {/* Monto Total */}
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs uppercase font-bold text-slate-400">Total:</span>
-                        <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight">
-                          {formatCurrency(p.totales?.total || 0)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Información Central: Cliente, Proyecto y Fechas */}
-                    <div className="space-y-1">
-                      <h3 className="text-lg sm:text-2xl font-black text-foreground tracking-tight">
-                        {p.cliente_nombre}
-                      </h3>
-                      {(p.nombre_proyecto || p.descripcion_proyecto) && (
-                        <p className="text-xs sm:text-sm font-medium text-slate-300 line-clamp-2">
-                          {p.nombre_proyecto ? `${p.nombre_proyecto} — ` : ""}{p.descripcion_proyecto}
-                        </p>
-                      )}
-                      
-                      <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-semibold text-slate-400">
-                        <span className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 text-primary" />
-                          Fecha Emisión: {p.fecha ? (typeof p.fecha === 'object' && p.fecha !== null && 'seconds' in p.fecha 
-                            ? new Date((p.fecha as { seconds: number }).seconds * 1000).toLocaleDateString('es-CL') 
-                            : new Date(String(p.fecha)).toLocaleDateString('es-CL')) : '---'}
-                        </span>
-
-                        {p.ultimoSeguimiento && (
-                          <span className="flex items-center gap-1.5 text-sky-300">
-                            <Clock className="h-3.5 w-3.5" />
-                            Último contacto: {new Date(p.ultimoSeguimiento.fecha).toLocaleDateString("es-CL")} ({p.ultimoSeguimiento.tipo})
+                        {/* 6. Total */}
+                        <TableCell className="py-3.5 text-right">
+                          <span className="font-mono font-black text-sm text-foreground">
+                            {formatCurrency(totalVal, moneda)}
                           </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Banner Destacado de Alerta Sin Respuesta con Acciones Directas */}
-                    {alertInfo && (
-                      <div className="p-3.5 sm:p-4 rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
-                        <div className="flex items-center gap-2.5">
-                          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
-                          <div>
-                            <p className="text-xs sm:text-sm font-black text-amber-300">
-                              Sin respuesta del cliente desde hace {alertInfo.diffDays} días
-                            </p>
-                            <p className="text-xs text-amber-200/80">
-                              Emitida el {alertInfo.fechaRefStr}. Registra un contacto o actualiza el estado para despejar esta alerta.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
-                          {clienteTelefono && (
-                            <WhatsAppButton
-                              telefono={clienteTelefono}
-                              clienteNombre={p.cliente_nombre}
-                              contexto={{
-                                tipo: "presupuesto",
-                                numeroDoc: p.numero,
-                                monto: p.totales?.total,
-                              }}
-                              buttonLabel="WhatsApp"
-                              className="h-9 px-3 text-xs font-black rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white"
-                            />
-                          )}
-
-                          <Button
-                            size="sm"
-                            onClick={() => onUpdateEstado(p, "en_negociacion")}
-                            className="h-9 px-3 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-500 text-white"
-                          >
-                            Marcar en Negociación
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openFollowUpModal(p)}
-                            className="h-9 px-3 text-xs font-bold rounded-lg border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-                          >
-                            Registrar Feedback
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onDismissAlert(p)}
-                            className="h-9 px-2 text-xs font-bold rounded-lg text-amber-300 hover:bg-amber-500/20"
-                            title="Silenciar esta alerta sin cambiar estado"
-                          >
-                            <BellOff className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Fila Inferior: Botones de Acción de Alto Contraste y Tamaño Confortable */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
-                      
-                      {/* Lado Izquierdo: Crear Proyecto o Ver Proyecto */}
-                      <div>
-                        {p.proyecto_id ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => router.push(`/proyectos?id=${p.proyecto_id}`)}
-                            className="h-10 px-4 rounded-xl border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-xs font-black gap-2 shadow-sm"
-                          >
-                            <Briefcase className="h-4 w-4" /> Ver Proyecto Operativo
-                          </Button>
-                        ) : p.estado === "aprobado" ? (
-                          <Button
-                            onClick={() => onCreateProject(p)}
-                            className="h-10 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs gap-2 shadow-lg shadow-emerald-600/20"
-                          >
-                            <Briefcase className="h-4 w-4" /> Iniciar Proyecto (50/50)
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            onClick={() => onCreateProject(p)}
-                            className="h-10 px-4 rounded-xl border-white/15 bg-card hover:bg-muted text-slate-300 hover:text-white text-xs font-bold gap-2"
-                          >
-                            <Sparkles className="h-4 w-4 text-primary" /> Aprobar y Crear Proyecto
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Lado Derecho: Acciones de Documento (PDF, Descarga, Edición, WhatsApp) */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {clienteTelefono && (
-                          <WhatsAppButton
-                            telefono={clienteTelefono}
-                            clienteNombre={p.cliente_nombre}
-                            contexto={{
-                              tipo: "presupuesto",
-                              numeroDoc: p.numero,
-                              monto: p.totales?.total,
-                            }}
-                            buttonLabel="WhatsApp"
-                            className="h-10 px-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold"
-                          />
-                        )}
-
-                        <Button
-                          variant="outline"
-                          onClick={() => onView(p)}
-                          className="h-10 px-3.5 rounded-xl border border-white/15 bg-card hover:bg-muted text-foreground text-xs font-bold gap-1.5"
-                          title="Ver PDF en pantalla"
-                        >
-                          <Eye className="h-4 w-4 text-primary" />
-                          <span>Ver PDF</span>
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => onDownload(p)}
-                          className="h-10 px-3.5 rounded-xl border border-white/15 bg-card hover:bg-muted text-foreground text-xs font-bold gap-1.5"
-                          title="Descargar PDF institucional"
-                        >
-                          <Download className="h-4 w-4 text-primary" />
-                          <span>Descargar</span>
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => onEdit(p.id!)}
-                          className="h-10 px-3.5 rounded-xl border border-white/15 bg-card hover:bg-muted text-foreground text-xs font-bold gap-1.5"
-                          title="Modificar cotización"
-                        >
-                          <Edit3 className="h-4 w-4 text-primary" />
-                          <span>Editar</span>
-                        </Button>
-
-                        {/* Botón Expansor de Ficha In-Line */}
-                        <Button
-                          variant="outline"
-                          onClick={() => toggleExpand(p.id!)}
-                          className={`h-10 px-3.5 rounded-xl border text-xs font-black gap-1.5 transition-all ${
-                            expandedPresupuestoId === p.id
-                              ? "bg-primary text-primary-foreground border-primary shadow-md"
-                              : "border-white/15 bg-card hover:bg-muted text-foreground"
-                          }`}
-                        >
-                          <span>{expandedPresupuestoId === p.id ? "Ocultar" : "Detalles"}</span>
-                          {expandedPresupuestoId === p.id ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-
-                    </div>
-
-                    {/* ============================================================== */}
-                    {/* SECCIÓN DESPLEGABLE: DETALLE COMPLETO DE LA PROPUESTA          */}
-                    {/* ============================================================== */}
-                    {expandedPresupuestoId === p.id && (
-                      <div className="mt-5 pt-5 border-t border-white/10 space-y-5 animate-in fade-in duration-200">
-                        
-                        {/* 1. Tabla de Ítems / Servicios Cotizados */}
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                              <Layers className="h-4 w-4" />
-                              Ítems y Servicios Cotizados ({p.items?.length || 0})
+                          {moneda === "UF" && (
+                            <span className="block text-[10px] text-muted-foreground font-mono">
+                              (${Math.round(totalVal * (p.valorUFReferencial || 38000)).toLocaleString("es-CL")})
                             </span>
-                            {p.moneda && (
-                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-300">
-                                Moneda: {p.moneda} {p.moneda === "UF" && p.valorUFReferencial ? `(UF Ref: $${p.valorUFReferencial.toLocaleString()})` : ""}
-                              </span>
+                          )}
+                        </TableCell>
+
+                        {/* 7. Acciones Rápidas */}
+                        <TableCell className="py-3.5 text-right pr-4 sm:pr-6" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Vista Previa */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onView(p)}
+                              className="h-7 w-7 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                              title="Ver Vista Previa"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+
+                            {/* Descargar PDF */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onDownload(p)}
+                              className="h-7 w-7 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-primary"
+                              title="Descargar PDF"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+
+                            {/* WhatsApp Directo */}
+                            {clienteTelefono && (
+                              <WhatsAppButton
+                                telefono={clienteTelefono}
+                                clienteNombre={p.cliente_nombre}
+                                size="sm"
+                                className="h-7 px-2 text-[10px] rounded-lg shadow-none"
+                              />
                             )}
-                          </div>
 
-                          <div className="rounded-xl border border-white/10 overflow-hidden bg-slate-950/70">
-                            <div className="grid grid-cols-12 gap-2 p-3 bg-white/5 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                              <div className="col-span-7 sm:col-span-8">Descripción del Servicio</div>
-                              <div className="col-span-2 text-center">Cant.</div>
-                              <div className="col-span-3 sm:col-span-2 text-right">Subtotal</div>
-                            </div>
+                            {/* Editar */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEdit(p.id!)}
+                              className="h-7 w-7 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                              title="Editar Presupuesto"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
 
-                            <div className="divide-y divide-white/5 text-xs">
-                              {(p.items && p.items.length > 0) ? (
-                                p.items.map((it, idx) => (
-                                  <div key={idx} className="grid grid-cols-12 gap-2 p-3 items-center hover:bg-white/[0.02]">
-                                    <div className="col-span-7 sm:col-span-8">
-                                      <p className="font-bold text-foreground">{it.descripcion}</p>
-                                      {it.precio > 0 && it.cantidad > 1 && (
-                                        <p className="text-[10px] font-mono text-muted-foreground">
-                                          Unitario: {formatCurrency(it.precio)}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="col-span-2 text-center font-mono font-bold text-slate-300">
-                                      {it.cantidad}
-                                    </div>
-                                    <div className="col-span-3 sm:col-span-2 text-right font-mono font-bold text-emerald-400">
-                                      {formatCurrency(it.total)}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="p-4 text-center text-muted-foreground italic text-xs">
-                                  Sin desglose de ítems registrados en este documento.
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                            {/* Convertir a Proyecto (si está aprobado o listo) */}
+                            {p.estado === "aprobado" && !p.proyecto_id && (
+                              <Button
+                                size="sm"
+                                onClick={() => onCreateProject(p)}
+                                className="h-7 px-2 text-[10px] font-black rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 gap-1"
+                                title="Crear proyecto a partir de esta cotización"
+                              >
+                                <Briefcase className="h-3 w-3" /> Crear Proyecto
+                              </Button>
+                            )}
 
-                        {/* 2. Grid de Resumen: Continuidad y Estructura 50/50 */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          
-                          {/* Bloque Continuidad Operativa & Hosting */}
-                          <div className="p-4 rounded-xl border border-white/10 bg-slate-950/50 space-y-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block">
-                              🌐 Continuidad Operativa & Hosting
-                            </span>
-                            <div className="text-xs space-y-1">
-                              <div className="flex justify-between font-bold text-slate-200">
-                                <span>Modalidad:</span>
-                                <span className="text-primary capitalize">
-                                  {p.bloqueContinuidad?.modalidad === "ano_1_incluido" || p.bloqueContinuidad?.modalidad === "incluido_ano1"
-                                    ? "Año 1 Incluido en desarrollo" 
-                                    : p.bloqueContinuidad?.modalidad === "mensual" || p.bloqueContinuidad?.modalidad === "recurrente_mensual"
-                                      ? "Pago Mensual Recurrente" 
-                                      : p.bloqueContinuidad?.modalidad ? "Pago Anual Recurrente" : "Hosting administrado"}
+                            {/* Registrar y Visualizar Notas Comerciales */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openFollowUpModal(p)}
+                              className="h-7 w-7 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-sky-400 relative"
+                              title="Ver historial y registrar notas comerciales"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              {(p.historialSeguimientos?.length || 0) > 0 && (
+                                <span className="absolute -top-1 -right-1 h-3.5 min-w-3.5 px-0.5 rounded-full bg-sky-500 text-slate-950 font-black text-[9px] flex items-center justify-center shadow-xs">
+                                  {p.historialSeguimientos?.length}
                                 </span>
-                              </div>
-                              {(p.bloqueContinuidad?.montoRecurrente || p.bloqueContinuidad?.monto) ? (
-                                <div className="flex justify-between font-mono font-bold text-indigo-300">
-                                  <span>Valor Continuidad:</span>
-                                  <span>
-                                    {p.moneda === "UF" || p.bloqueContinuidad?.monedaRecurrente === "UF"
-                                      ? `${p.bloqueContinuidad.montoRecurrente ?? p.bloqueContinuidad.monto} UF/mes` 
-                                      : `${formatCurrency(p.bloqueContinuidad.montoRecurrente ?? p.bloqueContinuidad.monto)}/mes`}
-                                  </span>
-                                </div>
-                              ) : null}
-                              <p className="text-[11px] text-muted-foreground pt-1 border-t border-white/5">
-                                {p.bloqueContinuidad?.detalle || "Hosting Reseller cPanel, casillas corporativas y SSL."}
-                              </p>
-                            </div>
+                              )}
+                            </Button>
                           </div>
-
-                          {/* Bloque Desglose Financiero 50/50 */}
-                          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-950/10 space-y-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
-                              💼 Esquema de Pago Estándar (50% / 50%)
-                            </span>
-                            <div className="text-xs space-y-1.5 font-mono">
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Monto Neto:</span>
-                                <span className="font-bold text-slate-200">{formatCurrency(p.totales?.neto || 0)}</span>
-                              </div>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>IVA (19%):</span>
-                                <span className="font-bold text-sky-400">+{formatCurrency(p.totales?.iva || 0)}</span>
-                              </div>
-                              <div className="flex justify-between font-bold text-white pt-1 border-t border-white/10 text-sm">
-                                <span>Total Cotizado:</span>
-                                <span className="text-emerald-400">{formatCurrency(p.totales?.total || 0)}</span>
-                              </div>
-                              <div className="flex justify-between text-[11px] text-emerald-300 font-sans pt-1">
-                                <span>1. Anticipo Inicio (50%):</span>
-                                <span className="font-mono font-bold">{formatCurrency(Math.round((p.totales?.total || 0) * 0.5))}</span>
-                              </div>
-                              <div className="flex justify-between text-[11px] text-emerald-300 font-sans">
-                                <span>2. Saldo Entrega (50%):</span>
-                                <span className="font-mono font-bold">{formatCurrency((p.totales?.total || 0) - Math.round((p.totales?.total || 0) * 0.5))}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
-
-                        {/* Enlace Público Interactivo si existe */}
-                        {p.tokenPublico && (
-                          <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="text-xs">
-                              <span className="font-bold text-indigo-300 block">
-                                🌐 Propuesta Interactiva para el Cliente
-                              </span>
-                              <span className="text-slate-400 text-[11px]">
-                                El cliente puede revisar la cotización en línea y presionar &quot;Aceptar Propuesta&quot;.
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  const url = `${window.location.origin}/propuesta/${p.tokenPublico}`;
-                                  navigator.clipboard.writeText(url);
-                                  toast.success("Enlace público copiado al portapapeles");
-                                }}
-                                className="h-8 text-xs font-bold border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/20"
-                              >
-                                Copiar Link
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => window.open(`/propuesta/${p.tokenPublico}`, '_blank')}
-                                className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-1"
-                              >
-                                Abrir <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                      </div>
-                    )}
-
-                  </CardContent>
-                </Card>
-              );
-            })
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
+
+          {/* 4. Footer de Paginación */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-t border-border/40 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>Filas por página:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground focus:outline-none"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span className="font-mono">
+                Página {currentPage} de {totalPages} ({sorted.length} registros)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="rounded-xl h-8 px-2.5 text-xs gap-1 border-border"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+              </Button>
+
+              <span className="px-2 font-mono font-bold text-foreground">
+                {currentPage} / {totalPages}
+              </span>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-xl h-8 px-2.5 text-xs gap-1 border-border"
+              >
+                Siguiente <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {/* Modal para Registrar Seguimiento Comercial */}
+        {/* Modal de Historial y Registro de Notas Comerciales */}
         <Dialog open={followUpModalOpen} onOpenChange={setFollowUpModalOpen}>
-          <DialogContent className="sm:max-w-[480px] border border-white/15 bg-card shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                Registrar Seguimiento Comercial
-              </DialogTitle>
-              <p className="text-xs text-slate-400">
-                Cotización N° <strong className="text-foreground">{selectedForFollowUp?.numero}</strong> &bull; {selectedForFollowUp?.cliente_nombre}
+          <DialogContent className="!max-w-2xl max-h-[88vh] flex flex-col p-5 sm:p-6 bg-card border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+            <DialogHeader className="pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center justify-between gap-3">
+                <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <span>Trazabilidad & Notas Comerciales</span>
+                </DialogTitle>
+                {selectedForFollowUp && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${getEstadoBadgeStyle(selectedForFollowUp.estado)}`}>
+                    {selectedForFollowUp.estado?.toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Cotización N° {selectedForFollowUp?.numero} &bull; {selectedForFollowUp?.cliente_nombre}
+                {selectedForFollowUp?.totales?.total ? ` &bull; Total: ${formatCurrency(selectedForFollowUp.totales.total, selectedForFollowUp.moneda)}` : ""}
               </p>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold uppercase text-slate-400">Canal de Contacto</Label>
-                <Select value={followUpTipo} onValueChange={(val) => { if (val) setFollowUpTipo(val); }}>
-                  <SelectTrigger className="h-11 rounded-xl bg-muted/40 border border-white/15 text-sm font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/15 text-foreground">
-                    <SelectItem value="llamada">📞 Llamada Telefónica</SelectItem>
-                    <SelectItem value="whatsapp">💬 Chat WhatsApp</SelectItem>
-                    <SelectItem value="correo">📧 Correo Electrónico</SelectItem>
-                    <SelectItem value="reunion">👥 Reunión Presencial / Meet</SelectItem>
-                    <SelectItem value="otro">⚙️ Otro</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1 text-xs scrollbar-thin scrollbar-thumb-muted">
+              {/* 1. Historial de Notas Previas */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <FileText className="h-3 w-3 text-primary" />
+                    Historial Registrado ({selectedForFollowUp?.historialSeguimientos?.length || 0})
+                  </span>
+                  {selectedForFollowUp?.ultimoSeguimiento?.fecha && (
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      Último contacto: {formatFollowUpDate(selectedForFollowUp.ultimoSeguimiento.fecha)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-52 overflow-y-auto space-y-2.5 p-3 rounded-2xl bg-muted/20 border border-white/5 scrollbar-thin scrollbar-thumb-muted">
+                  {(!selectedForFollowUp?.historialSeguimientos || selectedForFollowUp.historialSeguimientos.length === 0) ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-2">
+                      <FileText className="h-6 w-6 opacity-30 text-muted-foreground" />
+                      <span>No hay notas o interacciones comerciales registradas aún para esta cotización.</span>
+                    </div>
+                  ) : (
+                    [...(selectedForFollowUp.historialSeguimientos)]
+                      .reverse()
+                      .map((seg, idx) => (
+                        <div key={idx} className="p-3 rounded-xl bg-card/90 border border-white/10 space-y-1.5 shadow-xs">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${getSeguimientoBadge(seg.tipo)}`}>
+                                {getSeguimientoLabel(seg.tipo)}
+                              </span>
+                              <span className="font-bold text-foreground text-xs">
+                                {seg.autor || "Equipo Hoja SpA"}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              {formatFollowUpDate(seg.fecha)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed pl-0.5">
+                            {seg.nota}
+                          </p>
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold uppercase text-slate-400">Notas / Respuesta del Cliente</Label>
-                <Textarea
-                  value={followUpNota}
-                  onChange={(e) => setFollowUpNota(e.target.value)}
-                  placeholder="Ej. El cliente revisará la propuesta técnica con su socio y nos dará respuesta el viernes."
-                  rows={4}
-                  className="rounded-xl bg-muted/40 border border-white/15 text-sm font-medium leading-relaxed resize-none placeholder:text-slate-500"
-                />
-              </div>
+              {/* 2. Formulario de Nueva Nota */}
+              <div className="space-y-3 pt-2 border-t border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-sky-400" />
+                  Nueva Nota o Interacción Comercial
+                </span>
 
-              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs text-sky-200">
-                💡 Al registrar este seguimiento, la alerta de <strong>&ldquo;Cotización sin respuesta&rdquo;</strong> se despejará automáticamente y el estado se actualizará a <strong>&ldquo;En Negociación&rdquo;</strong>.
+                {/* Selector de Tipo */}
+                <div className="space-y-1.5">
+                  <Label className="font-bold text-foreground text-xs">Tipo de Interacción</Label>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpTipo("llamada")}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all ${
+                        followUpTipo === "llamada" 
+                          ? "bg-amber-500 text-slate-950 border-amber-500 shadow-sm" 
+                          : "bg-muted/30 border-white/10 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      📞 Llamada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpTipo("whatsapp")}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all ${
+                        followUpTipo === "whatsapp" 
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" 
+                          : "bg-muted/30 border-white/10 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      💬 WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpTipo("correo")}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all ${
+                        followUpTipo === "correo" 
+                          ? "bg-sky-500 text-white border-sky-500 shadow-sm" 
+                          : "bg-muted/30 border-white/10 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      ✉️ Correo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpTipo("reunion")}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all ${
+                        followUpTipo === "reunion" 
+                          ? "bg-purple-500 text-white border-purple-500 shadow-sm" 
+                          : "bg-muted/30 border-white/10 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      🤝 Reunión
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpTipo("nota")}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all ${
+                        followUpTipo === "nota" 
+                          ? "bg-slate-700 text-white border-slate-600 shadow-sm" 
+                          : "bg-muted/30 border-white/10 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      📝 Nota Interna
+                    </button>
+                  </div>
+                </div>
+
+                {/* Plantillas / Chips Rápidos */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-medium block">
+                    Plantillas rápidas (haz clic para insertar):
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[
+                      "Propuesta en revisión por gerencia",
+                      "Solicita ajuste en alcance / monto",
+                      "Reunión de aclaración agendada",
+                      "Aprobación verbal confirmada",
+                      "Sin respuesta tras llamada"
+                    ].map((chip, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setFollowUpNota((prev) => prev ? `${prev} • ${chip}` : chip);
+                        }}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-muted/40 hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-white/5 transition-all font-medium"
+                      >
+                        + {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Textarea Detalle */}
+                <div className="space-y-1.5">
+                  <Label className="font-bold text-foreground text-xs">Detalle o Acuerdo Comercial *</Label>
+                  <Textarea 
+                    rows={3}
+                    placeholder="Escribe acuerdos alcanzados, observaciones, fechas de recontacto o requerimientos adicionales..."
+                    value={followUpNota}
+                    onChange={(e) => setFollowUpNota(e.target.value)}
+                    className="rounded-xl bg-muted/30 border border-white/10 text-xs resize-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" size="sm" onClick={() => setFollowUpModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSaveFollowUp}
-                disabled={!followUpNota.trim()}
-                className="bg-primary text-primary-foreground font-black text-xs rounded-xl h-10 px-5"
+            <DialogFooter className="pt-3 border-t border-white/10 gap-2 sm:gap-0 shrink-0">
+              <Button 
+                variant="outline" 
+                onClick={() => setFollowUpModalOpen(false)}
+                className="rounded-xl text-xs h-9 px-4 border-white/10"
               >
-                Guardar Seguimiento
+                Cerrar
+              </Button>
+              <Button 
+                onClick={handleSaveFollowUp}
+                disabled={!followUpNota.trim() || isSavingFollowUp}
+                className="rounded-xl text-xs font-black bg-primary text-primary-foreground h-9 px-5 gap-1.5 shadow-md shadow-primary/20"
+              >
+                {isSavingFollowUp ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                <span>Guardar Nota Comercial</span>
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
       </div>
     </TooltipProvider>
   );

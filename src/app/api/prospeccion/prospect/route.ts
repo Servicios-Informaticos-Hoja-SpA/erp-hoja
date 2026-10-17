@@ -150,7 +150,10 @@ export async function POST(request: Request) {
           nombre: validated.nombreNegocio.trim(),
           telefono: telTrim,
           email: emailTrim,
+          tipo_registro: "prospecto",
+          sub_estado: validated.canal === "no_contactar" ? "sin_contacto" : "contactado",
           estado: "prospecto",
+          notas: validated.notas?.trim() || "",
           sintomaPrincipal: mapSintomaToCliente(validated.sintoma),
           etapaPipeline,
           fechaProximoSeguimiento: nextContactDate,
@@ -162,18 +165,54 @@ export async function POST(request: Request) {
             estado: "pendiente",
           },
           historialNotas: [
+            ...(validated.notas?.trim() ? [{
+              id: `nota-${Date.now()}-obs`,
+              autorNombre: "Prospección Guiada",
+              autorEmail: validated.userEmail,
+              fecha: fechaIso,
+              texto: validated.notas.trim(),
+              tipo: "llamada" as const,
+            }] : []),
             {
               id: `nota-${Date.now()}`,
               autorNombre: "Prospección Guiada",
               autorEmail: validated.userEmail,
               fecha: fechaIso,
-              texto: `${canalTexto}. Síntoma: ${validated.sintoma}.${validated.notas ? ` Nota: ${validated.notas}` : ""}`,
+              texto: `${canalTexto}. Síntoma: ${validated.sintoma}`,
               tipo: validated.canal === "whatsapp" ? "whatsapp" : validated.canal === "telefono" ? "llamada" : validated.canal === "correo" ? "acuerdo" : "reunion",
             },
           ],
           createdAt: fechaIso,
           updatedAt: fechaIso,
         });
+      } else {
+        // Si el cliente/prospecto ya existe en CRM, anexar nota a su historial
+        try {
+          const matchQuery = telTrim 
+            ? query(collection(db, "clientes"), where("telefono", "==", telTrim))
+            : query(collection(db, "clientes"), where("email", "==", emailTrim));
+          const existingSnap = await getDocs(matchQuery);
+          if (!existingSnap.empty) {
+            const existingDoc = existingSnap.docs[0];
+            const existingData = existingDoc.data();
+            const existingNotas = Array.isArray(existingData.historialNotas) ? existingData.historialNotas : [];
+            const nuevaEntrada = {
+              id: `nota-${Date.now()}`,
+              autorNombre: "Prospección Guiada",
+              autorEmail: validated.userEmail,
+              fecha: fechaIso,
+              texto: `${validated.canal === "whatsapp" ? "WhatsApp" : validated.canal === "telefono" ? "Llamada" : validated.canal === "correo" ? "Correo" : "Contacto"}: ${validated.sintoma}.${validated.notas ? ` Nota: ${validated.notas}` : ""}`,
+              tipo: validated.canal === "whatsapp" ? "whatsapp" : validated.canal === "telefono" ? "llamada" : validated.canal === "correo" ? "acuerdo" : "reunion",
+            };
+            await updateDoc(doc(db, "clientes", existingDoc.id), {
+              historialNotas: [nuevaEntrada, ...existingNotas],
+              ...(validated.notas ? { notas: validated.notas.trim() } : {}),
+              updatedAt: fechaIso,
+            });
+          }
+        } catch (crmAppendErr) {
+          console.warn("Aviso al anexar nota a cliente existente:", crmAppendErr);
+        }
       }
     } catch (crmErr) {
       console.warn("Advertencia al sincronizar con CRM clientes:", crmErr);

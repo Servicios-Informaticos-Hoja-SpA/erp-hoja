@@ -30,6 +30,12 @@ const checklistItemSchema = z.object({
   completada: z.boolean(),
   completadaPor: z.string().optional(),
   completadaEn: z.string().optional(),
+  estadoKanban: z.enum(["por_hacer", "en_desarrollo", "bloqueado", "pruebas_qa", "completado"]).optional(),
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  prioridad: z.enum(["baja", "media", "alta"]).optional(),
+  responsable: z.string().optional(),
+  ticketIdRelacionado: z.string().optional(),
 });
 
 const proyectoUpdateSchema = z.object({
@@ -62,6 +68,19 @@ const proyectoUpdateSchema = z.object({
   hitosPago: z.array(hitoPagoSchema).optional(),
   progresoPorcentaje: z.number().optional(),
   checklist: z.array(checklistItemSchema).optional(),
+  solicitudesCambio: z.array(z.any()).optional(),
+  slaDetalle: z.string().optional(),
+  especificacionesCierre: z.any().optional(),
+  propuestaFormalizada: z.boolean().optional(),
+  actaEntregaFormalizada: z.boolean().optional(),
+  alcanceItems: z.array(z.string()).optional(),
+  clienteEmail: z.string().optional(),
+  reuniones: z.array(z.any()).optional(),
+  credenciales: z.array(z.any()).optional(),
+  garantia: z.any().optional(),
+  archivosAdjuntos: z.array(z.any()).optional(),
+  pendientes: z.array(z.any()).optional(),
+  condicionesComerciales: z.any().optional(),
 }).partial();
 
 export async function GET(

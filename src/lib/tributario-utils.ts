@@ -1,4 +1,4 @@
-import { EventoFinanciero, ProyeccionTributariaF29 } from "@/lib/types";
+import { EventoFinanciero, ProyeccionTributariaF29, DeclaracionF29 } from "@/lib/types";
 
 export const PPM_TASA_REFERENCIAL = 0.0025; // 0.25% sobre ventas netas afectas
 export const IVA_TASA_CHILE = 0.19; // 19% IVA en Chile
@@ -77,10 +77,25 @@ export function calcularF29Mes(
     if (e.tipo === "ingreso") {
       totalIngresosMes += valorPrincipal;
 
-      // Por defecto en Hoja SpA, las ventas y servicios son con factura afecta a menos que se indique lo contrario
-      const esAfecta = e.aplicaFactura !== false;
+      // REGLA ESTRICTA: Ventas facturadas debe ser SOLO lo que efectivamente tiene factura emitida
+      // NUNCA saldos iniciales, aportes de capital ni ingresos sin factura
+      const conceptoLower = (e.concepto || "").toLowerCase();
+      const esSaldoInicial = 
+        (e.categoria as string) === "saldo_inicial" ||
+        conceptoLower.includes("saldo inicial") ||
+        conceptoLower.includes("caja inicial") ||
+        conceptoLower.includes("aporte de capital") ||
+        conceptoLower.includes("ingreso inicial") ||
+        e.tipoComprobante === "sin_comprobante" ||
+        e.aplicaFactura === false;
 
-      if (esAfecta) {
+      const tieneFactura = !esSaldoInicial && Boolean(
+        (e.numeroFactura && e.numeroFactura.trim().length > 0) ||
+        e.tipoComprobante === "factura" ||
+        (e.aplicaFactura === true && e.tipoComprobante !== "sin_comprobante" && e.tipoComprobante !== "boleta")
+      );
+
+      if (tieneFactura) {
         let neto = e.montoNeto;
         let iva = e.ivaMonto;
 
@@ -93,15 +108,23 @@ export function calcularF29Mes(
         ventasNetasTotal += neto;
         ivaDebitoTotal += iva;
         totalFacturadoVentas += valorPrincipal;
-      } else {
-        ventasNetasTotal += valorPrincipal;
-        totalFacturadoVentas += valorPrincipal;
       }
+      // Los ingresos no facturados (saldo inicial, aportes, boletas exentas) solo forman parte
+      // de la caja disponible (totalIngresosMes), sin generar débito fiscal F29.
     } else if (e.tipo === "egreso") {
       totalEgresosMes += valorPrincipal;
 
-      // Compras locales con factura chilena deducible de IVA (Crédito fiscal)
-      if (e.deducibleIva) {
+      // REGLA ESTRICTA: Solo compras con factura asociada a proyecto y deducibles computan crédito fiscal
+      const tieneProyecto = Boolean((e.proyectoId && e.proyectoId !== "ninguno") || e.referenciaId);
+      const tieneFactura = Boolean(
+        (e.numeroFactura && e.numeroFactura.trim().length > 0) ||
+        e.tipoComprobante === "factura"
+      ) && e.tipoComprobante !== "sin_comprobante" && e.tipoComprobante !== "boleta";
+      const esDeducible = e.deducibleIva !== false;
+
+      const esGastoFacturableProyecto = tieneProyecto && tieneFactura && esDeducible;
+
+      if (esGastoFacturableProyecto) {
         let neto = e.montoNeto;
         let iva = e.ivaMonto;
 
@@ -132,19 +155,30 @@ export function calcularF29Mes(
   const saldoOperativo = totalIngresosMes - totalEgresosMes;
   const cajaLiquidaRealDisponible = Math.max(0, saldoOperativo - f29Estimado);
 
-  // Alerta de Calendario SII (El día 20 vence el F29 electrónico)
+  // Alerta de Calendario SII (El día 20 vence el F29 electrónico a mes vencido)
   const diaActual = fechaReferencia.getDate();
   const mesActualRef = fechaReferencia.getMonth() + 1;
   const anioActualRef = fechaReferencia.getFullYear();
 
-  // El período a pagar en el día 20 del mes en curso corresponde a las operaciones del mes anterior
-  // o si estamos calculando para el mes en curso, verificamos si aplica la ventana de alerta (días 10 al 20)
-  const activaVentana = diaActual >= 10 && diaActual <= 20;
-  const diasRestantes = activaVentana ? 20 - diaActual : 0;
-  const esCritica = activaVentana && diasRestantes <= 3; // Menos de 3 días para el día 20 (días 17 al 20)
+  // En Chile, el IVA de las operaciones del mes M (del 1 al último día de M) se declara y paga entre el 10 y 20 de M+1
+  let mesPagoNum = mes + 1;
+  let anioPagoNum = anio;
+  if (mesPagoNum > 12) {
+    mesPagoNum = 1;
+    anioPagoNum += 1;
+  }
+  const nombreMesPago = NOMBRES_MESES[mesPagoNum - 1];
+  const fechaVence = `20 de ${nombreMesPago}`;
 
-  const nombreMesActual = NOMBRES_MESES[fechaReferencia.getMonth()];
-  const fechaVence = `20 de ${nombreMesActual}`;
+  const esMesDePago = anioActualRef === anioPagoNum && mesActualRef === mesPagoNum;
+  const activaVentana = esMesDePago && diaActual >= 10 && diaActual <= 20;
+  const diasRestantes = activaVentana ? 20 - diaActual : 0;
+  const esCritica = activaVentana && diasRestantes <= 3;
+
+  const sinFacturacion = f29Estimado === 0 && totalFacturadoVentas === 0;
+  const mensajeAlerta = sinFacturacion
+    ? `Atención: Sin facturación en ${nombreMes}. Recuerda completar el F29 sin movimiento antes del ${fechaVence} para evitar multas del SII.`
+    : `Atención: Declaración y pago F29 vence el ${fechaVence} (período ${nombreMes}). Provisión a pagar estimada: ${formatCLP(f29Estimado)} CLP.`;
 
   const alertaVencimiento = activaVentana
     ? {
@@ -152,7 +186,7 @@ export function calcularF29Mes(
         esCritica,
         fechaVence,
         diasRestantes,
-        mensaje: `Atención: Declaración y pago F29 vence el ${fechaVence}. Provisión a pagar estimada: ${formatCLP(f29Estimado)} CLP`,
+        mensaje: mensajeAlerta,
       }
     : undefined;
 
@@ -176,54 +210,115 @@ export function calcularF29Mes(
 
 /**
  * Obtiene la alerta global del F29 si estamos en el rango de calendario del SII (días 10 al 20)
+ * REGLA TRIBUTARIA SII: El pago de IVA es a mes vencido.
+ * Lo facturado en el mes anterior (hasta su último día) se declara y paga entre el 10 y 20 del mes en curso.
+ * Si no hubo facturación, es obligatorio declarar el F29 sin movimiento para evitar multas del SII.
  */
 export function obtenerAlertaCalendarioSII(
   eventos: EventoFinanciero[],
-  fechaActual: Date = new Date()
+  fechaActual: Date = new Date(),
+  declaracionesF29: DeclaracionF29[] = []
 ): {
   activa: boolean;
   esCritica: boolean;
   diasRestantes: number;
   f29Estimado: number;
   periodoDeclarado: string;
-  mensaje: string;
+  periodoFiscalVencido: string;
   fechaVence: string;
+  mensaje: string;
+  sinMovimiento: boolean;
+  yaDeclarado: boolean;
+  declaracionRegistrada?: DeclaracionF29;
+  proyeccionMesEnCurso: {
+    periodo: string;
+    nombreMes: string;
+    mesPago: string;
+    fechaVence: string;
+    f29Estimado: number;
+    totalFacturadoVentas: number;
+    ventasNetas: number;
+    ivaDebito: number;
+    ivaCredito: number;
+    ppm: number;
+  };
 } | null {
   const dia = fechaActual.getDate();
   if (dia < 10 || dia > 20) {
     return null;
   }
 
-  // En el SII de Chile, el día 20 de cada mes se declara y paga el F29 de las operaciones del mes inmediatamente anterior.
-  // Ejemplo: el 20 de Octubre se paga el F29 de Septiembre.
-  // Sin embargo, si aún no hay compras/ventas cargadas en el mes anterior, evaluamos también el mes en curso para no mostrar $0 si los registros se imputan al mes actual.
-  let mesAtras = fechaActual.getMonth(); // 0-based: mes anterior (ej. si Octubre es 9, mesAtras = 8 -> Septiembre)
+  // 1. Período vencido que corresponde declarar en la ventana del 10 al 20
+  let mesAtras = fechaActual.getMonth(); // 0-based: si es Octubre (9), mesAtras = 8 (Septiembre -> mes 9 en 1-based)
   let anioAtras = fechaActual.getFullYear();
   if (mesAtras === 0) {
     mesAtras = 12;
     anioAtras -= 1;
   }
 
+  const periodoFiscalVencido = `${anioAtras}-${String(mesAtras).padStart(2, "0")}`;
   const proyeccionMesAnterior = calcularF29Mes(eventos, anioAtras, mesAtras, fechaActual);
-  const proyeccionMesActual = calcularF29Mes(eventos, fechaActual.getFullYear(), fechaActual.getMonth() + 1, fechaActual);
 
-  // Tomamos la estimación relevante (si el mes anterior tiene ventas/F29 se usa ese, sino el mes en curso)
-  const proyeccionRelevante =
-    proyeccionMesAnterior.f29Estimado > 0 ? proyeccionMesAnterior : proyeccionMesActual;
+  // 2. Comprobar si este período vencido ya fue marcado como declarado ante el SII
+  const declaracionRegistrada = declaracionesF29.find((d) => d.periodo === periodoFiscalVencido);
+  const yaDeclarado = Boolean(declaracionRegistrada);
+
+  // 3. Proyección del mes en curso (ej. Octubre, que vence el 20 de Noviembre)
+  const mesActualNum = fechaActual.getMonth() + 1;
+  const anioActualNum = fechaActual.getFullYear();
+  const periodoActualStr = `${anioActualNum}-${String(mesActualNum).padStart(2, "0")}`;
+  const proyeccionMesActual = calcularF29Mes(eventos, anioActualNum, mesActualNum, fechaActual);
+
+  let mesPagoSiguiente = mesActualNum + 1;
+  let anioPagoSiguiente = anioActualNum;
+  if (mesPagoSiguiente > 12) {
+    mesPagoSiguiente = 1;
+    anioPagoSiguiente += 1;
+  }
+  const nombreMesPagoSiguiente = NOMBRES_MESES[mesPagoSiguiente - 1];
+  const fechaVenceSiguiente = `20 de ${nombreMesPagoSiguiente}`;
+
+  const proyeccionMesEnCurso = {
+    periodo: periodoActualStr,
+    nombreMes: proyeccionMesActual.nombreMes,
+    mesPago: `${anioPagoSiguiente}-${String(mesPagoSiguiente).padStart(2, "0")}`,
+    fechaVence: fechaVenceSiguiente,
+    f29Estimado: proyeccionMesActual.f29Estimado,
+    totalFacturadoVentas: proyeccionMesActual.totalFacturadoVentas,
+    ventasNetas: proyeccionMesActual.ventasNetasTotal,
+    ivaDebito: proyeccionMesActual.ivaDebitoTotal,
+    ivaCredito: proyeccionMesActual.ivaCreditoTotal,
+    ppm: proyeccionMesActual.ppmTotal,
+  };
 
   const diasRestantes = 20 - dia;
-  const esCritica = diasRestantes <= 3;
   const nombreMesPago = NOMBRES_MESES[fechaActual.getMonth()];
   const fechaVence = `20 de ${nombreMesPago}`;
-  const f29Estimado = proyeccionRelevante.f29Estimado;
+  const f29Estimado = proyeccionMesAnterior.f29Estimado;
+  const periodoDeclarado = proyeccionMesAnterior.nombreMes;
+  const sinMovimiento = f29Estimado === 0 && proyeccionMesAnterior.totalFacturadoVentas === 0;
+
+  let mensaje = "";
+  if (yaDeclarado) {
+    mensaje = `✓ F29 de ${periodoDeclarado} ya fue emitido y declarado ante el SII. Próxima declaración: ${proyeccionMesEnCurso.nombreMes} (vence el ${fechaVenceSiguiente}). Proyección con facturación acumulada actual: ${formatCLP(proyeccionMesEnCurso.f29Estimado)} CLP.`;
+  } else if (sinMovimiento) {
+    mensaje = `Sin facturación registrada en ${periodoDeclarado}. Recuerda completar y declarar el F29 sin movimiento antes del ${fechaVence} para evitar multas del SII.`;
+  } else {
+    mensaje = `Declaración y pago F29 vence el ${fechaVence} (período ${periodoDeclarado}). Provisión a pagar estimada: ${formatCLP(f29Estimado)} CLP.`;
+  }
 
   return {
-    activa: true,
-    esCritica,
+    activa: !yaDeclarado,
+    esCritica: !yaDeclarado && diasRestantes <= 3,
     diasRestantes,
     f29Estimado,
-    periodoDeclarado: proyeccionRelevante.nombreMes,
+    periodoDeclarado,
+    periodoFiscalVencido,
     fechaVence,
-    mensaje: `Atención: Declaración y pago F29 vence el ${fechaVence}. Provisión a pagar estimada: ${formatCLP(f29Estimado)} CLP`,
+    mensaje,
+    sinMovimiento,
+    yaDeclarado,
+    declaracionRegistrada,
+    proyeccionMesEnCurso,
   };
 }

@@ -37,9 +37,10 @@ import { toast } from "sonner";
 interface PresupuestoFormProps {
   id?: string;
   onSuccess?: () => void;
+  onClose?: () => void;
 }
 
-export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess }) => {
+export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess, onClose }) => {
   const router = useRouter();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [catalogo, setCatalogo] = useState<Servicio[]>([]);
@@ -47,6 +48,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   
   // Form State
   const [selectedCliente, setSelectedCliente] = useState("");
+  const [clienteNombre, setClienteNombre] = useState("");
   const [proyecto, setProyecto] = useState("");
   const [descripcionProyecto, setDescripcionProyecto] = useState("");
   const [items, setItems] = useState<PresupuestoItem[]>([]);
@@ -67,6 +69,9 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
   const [montoContinuidad, setMontoContinuidad] = useState<number>(0);
   const [detalleContinuidad, setDetalleContinuidad] = useState<string>("Hosting Reseller cPanel, casillas de correo corporativas, SSL y copias de seguridad semanales.");
   const [tokenPublico, setTokenPublico] = useState<string>("");
+  const [condicionesComerciales, setCondicionesComerciales] = useState<string>(
+    "• Forma de Pago: 50% de anticipo al inicio de los trabajos y 50% contra entrega conforme y paso a producción.\n• Plazo de Entrega: Estimado conforme a cronograma acordado tras validación del anticipo.\n• Validez de la Oferta: 15 días corridos a contar de la fecha de emisión del documento.\n• Continuidad y Garantía: Incluye 12 meses de soporte técnico, hosting administrado y respaldo ante incidencias."
+  );
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -83,7 +88,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
         if (id) {
           const pres = await getPresupuestoById(id);
-          setSelectedCliente(pres.cliente_id);
+          setSelectedCliente(pres.cliente_id || "");
+          setClienteNombre(pres.cliente_nombre || "");
           setProyecto(pres.nombre_proyecto || pres.descripcion_proyecto || "");
           setDescripcionProyecto(pres.nombre_proyecto ? (pres.descripcion_proyecto || "") : "");
           setItems(pres.items || []);
@@ -94,6 +100,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
           if (pres.estado) setEstado(pres.estado);
           if (pres.moneda) setMoneda(pres.moneda);
           if (pres.valorUFReferencial) setValorUF(pres.valorUFReferencial);
+          if (pres.condiciones_comerciales) setCondicionesComerciales(pres.condiciones_comerciales);
           if (pres.bloqueContinuidad) {
             setModalidadContinuidad(pres.bloqueContinuidad.modalidad);
             if (pres.bloqueContinuidad.montoRecurrente !== undefined) {
@@ -234,7 +241,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       id,
       numero: nextNumber,
       cliente_id: selectedCliente,
-      cliente_nombre: cliente?.nombre || "",
+      cliente_nombre: cliente?.nombre || clienteNombre || "",
       nombre_proyecto: proyecto,
       descripcion_proyecto: descripcionProyecto,
       items: sanitizedItems,
@@ -242,6 +249,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       parametros_personalizados: params,
       forma_pago: params["Forma Pago"] || "50% Anticipo y 50% Contra entrega",
       plazo_entrega: params["Plazo Entrega"] || "30 días",
+      condiciones_comerciales: condicionesComerciales,
       totales: { neto, iva, total: totalFinal },
       moneda,
       valorUFReferencial: valorUF,
@@ -287,6 +295,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
       setClientes(cls);
       if (res && res.id) {
         setSelectedCliente(res.id);
+        setClienteNombre(newCliente.nombre || "");
       }
       toast.success("Cliente añadido.");
     } catch (err) {
@@ -297,12 +306,13 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
 
   const currentData: Partial<Presupuesto> = {
     numero: nextNumber,
-    cliente_nombre: clientes.find(c => c.id === selectedCliente)?.nombre || "Nombre del Cliente",
+    cliente_nombre: clientes.find(c => c.id === selectedCliente)?.nombre || clienteNombre || "Nombre del Cliente",
     nombre_proyecto: proyecto,
     descripcion_proyecto: descripcionProyecto,
     items,
     servicios_opcionales: optionalItems,
     parametros_personalizados: params,
+    condiciones_comerciales: condicionesComerciales,
     totales: { neto, iva, total: totalFinal },
     moneda,
     valorUFReferencial: valorUF,
@@ -354,6 +364,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         catalogo={catalogo}
         selectedCliente={selectedCliente}
         setSelectedCliente={setSelectedCliente}
+        clienteNombre={clienteNombre}
+        setClienteNombre={setClienteNombre}
         proyecto={proyecto}
         setProyecto={setProyecto}
         descripcionProyecto={descripcionProyecto}
@@ -370,6 +382,10 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         addParam={addParam}
         removeParam={removeParam}
         updateParam={updateParam}
+        numero={nextNumber}
+        onClose={onClose}
+        condicionesComerciales={condicionesComerciales}
+        setCondicionesComerciales={setCondicionesComerciales}
         onPreview={() => setIsPreviewOpen(true)}
         onSave={() => handleSave({ close: true, download: false })}
         onAddClient={handleAddClient}
@@ -388,6 +404,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess 
         detalleContinuidad={detalleContinuidad}
         setDetalleContinuidad={setDetalleContinuidad}
         tokenPublico={tokenPublico}
+        config={config}
       />
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>

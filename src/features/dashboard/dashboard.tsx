@@ -6,17 +6,20 @@ import { useRouter } from "next/navigation";
 import { getConfig, updateConfig, getDashboardMetrics, DashboardMetricsData } from "@/lib/services";
 import { toast } from "sonner";
 
+let globalConfigChecked = false;
+
 export const DashboardFeature = () => {
   const router = useRouter();
   const [metrics, setMetrics] = useState<DashboardMetricsData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Inicializar configuración global si no existe
+  // Inicializar configuración global de forma diferida sólo una vez por sesión de navegador
   useEffect(() => {
+    if (globalConfigChecked) return;
     const checkConfig = async () => {
+      globalConfigChecked = true;
       const config = await getConfig();
       if (!config) {
-        console.log("Inicializando configuración global...");
         await updateConfig({
           banco: "Banco Falabella",
           tipo_cuenta: "Corriente",
@@ -34,7 +37,7 @@ export const DashboardFeature = () => {
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      const data = await getDashboardMetrics();
+      const data = await getDashboardMetrics(true);
       setMetrics(data);
     } catch (err) {
       console.error("Error al cargar métricas de dashboard:", err);
@@ -76,8 +79,6 @@ export const DashboardFeature = () => {
       router.push("/suscripciones");
     } else if (app === "flujo-caja") {
       router.push("/flujo-caja");
-    } else if (app === "prospeccion") {
-      router.push("/prospeccion");
     }
   };
 

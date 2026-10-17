@@ -37,7 +37,8 @@ import {
   Trash2,
   Check,
   StopCircle,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from "lucide-react";
 import { 
   ProspectSintoma, 
@@ -902,7 +903,7 @@ export function SessionModal({
 
             {/* 5. VISTA PREVIA Y ACCIÓN ADAPTADA AL CANAL (Compacta y sin bloat) */}
             {canal === "whatsapp" && (
-              <div className="space-y-1.5 p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 animate-in fade-in duration-200">
+              <div className="space-y-2 p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-emerald-400 flex items-center gap-1">
                     <MessageSquare className="w-3.5 h-3.5" /> Mensaje Personalizado
@@ -915,6 +916,14 @@ export function SessionModal({
                   rows={3}
                   className="bg-slate-950/90 border-emerald-500/30 text-slate-200 text-xs font-sans leading-relaxed rounded-xl resize-none focus-visible:ring-emerald-500"
                 />
+                <div className="pt-1">
+                  <Input
+                    value={notas}
+                    onChange={(e) => setNotas(e.target.value)}
+                    placeholder="Nota u observación interna (opcional, ej: 'Nombre del dueño, objeción...')"
+                    className="bg-slate-950/90 border-white/10 text-white h-8 text-xs rounded-xl"
+                  />
+                </div>
               </div>
             )}
 
@@ -951,6 +960,14 @@ export function SessionModal({
                   rows={3}
                   className="bg-slate-950/90 border-indigo-500/30 text-slate-200 text-xs leading-relaxed rounded-xl resize-none"
                 />
+                <div className="pt-1">
+                  <Input
+                    value={notas}
+                    onChange={(e) => setNotas(e.target.value)}
+                    placeholder="Nota u observación interna (opcional)"
+                    className="bg-slate-950/90 border-white/10 text-white h-8 text-xs rounded-xl"
+                  />
+                </div>
               </div>
             )}
 

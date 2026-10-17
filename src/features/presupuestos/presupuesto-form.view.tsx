@@ -5,15 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
 import { 
   Plus, 
   Trash2, 
   Eye, 
   Save, 
-  BadgePercent
+  FileText, 
+  Building2, 
+  Layers, 
+  CreditCard, 
+  RotateCcw,
+  Loader2,
+  X,
+  PlusCircle,
+  Briefcase
 } from "lucide-react";
-import { Cliente, Servicio, PresupuestoItem, PresupuestoEstado, ModalidadContinuidad } from "@/lib/types";
+import { Cliente, Servicio, PresupuestoItem, PresupuestoEstado, ConfiguracionGlobal } from "@/lib/types";
 import { 
   Select, 
   SelectContent, 
@@ -26,30 +33,36 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface PresupuestoFormViewProps {
-  clientes: Cliente[];
-  catalogo: Servicio[];
+  numero?: string;
+  onClose?: () => void;
+  config?: ConfiguracionGlobal | null;
+  clientes?: Cliente[];
+  catalogo?: Servicio[];
   selectedCliente: string;
   setSelectedCliente: (id: string) => void;
+  clienteNombre?: string;
+  setClienteNombre?: (val: string) => void;
   proyecto: string;
   setProyecto: (val: string) => void;
   descripcionProyecto: string;
   setDescripcionProyecto: (val: string) => void;
-  items: PresupuestoItem[];
+  items?: PresupuestoItem[];
   addItem: (item?: Partial<PresupuestoItem>) => void;
   removeItem: (index: number) => void;
   updateItem: (index: number, field: keyof PresupuestoItem, value: string | number) => void;
-  optionalItems: PresupuestoItem[];
+  optionalItems?: PresupuestoItem[];
   addOptionalItem: () => void;
   removeOptionalItem: (index: number) => void;
   updateOptionalItem: (index: number, field: keyof PresupuestoItem, value: string | number) => void;
-  params: Record<string, string>;
-  addParam: () => void;
-  removeParam: (key: string) => void;
-  updateParam: (oldKey: string, newKey: string, value: string) => void;
+  condicionesComerciales?: string;
+  setCondicionesComerciales?: (val: string) => void;
   onPreview: () => void;
   onSave: () => void;
   onAddClient: (cliente: Partial<Cliente>) => Promise<void>;
@@ -61,8 +74,12 @@ interface PresupuestoFormViewProps {
   setMoneda?: (val: "CLP" | "UF") => void;
   valorUF?: number;
   setValorUF?: (val: number) => void;
-  modalidadContinuidad?: ModalidadContinuidad;
-  setModalidadContinuidad?: (val: ModalidadContinuidad) => void;
+  params?: Record<string, string>;
+  addParam?: () => void;
+  removeParam?: (key: string) => void;
+  updateParam?: (oldKey: string, newKey: string, value: string) => void;
+  modalidadContinuidad?: string;
+  setModalidadContinuidad?: (val: any) => void;
   montoContinuidad?: number;
   setMontoContinuidad?: (val: number) => void;
   detalleContinuidad?: string;
@@ -71,63 +88,76 @@ interface PresupuestoFormViewProps {
 }
 
 export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
-  clientes,
+  numero = "0001",
+  onClose,
+  config,
+  clientes = [],
+  catalogo = [],
   selectedCliente,
   setSelectedCliente,
+  clienteNombre,
+  setClienteNombre,
   proyecto,
   setProyecto,
   descripcionProyecto,
   setDescripcionProyecto,
-  items,
+  items = [],
   addItem,
   removeItem,
   updateItem,
-  optionalItems,
+  optionalItems = [],
   addOptionalItem,
   removeOptionalItem,
   updateOptionalItem,
-  params,
-  removeParam,
-  updateParam,
+  condicionesComerciales,
+  setCondicionesComerciales,
   onPreview,
   onSave,
   onAddClient,
   isSaving,
-  totales,
+  totales = { neto: 0, iva: 0, total: 0 },
   estado = "borrador",
   setEstado,
   moneda = "CLP",
   setMoneda,
   valorUF = 38000,
   setValorUF,
-  modalidadContinuidad = "ano_1_incluido",
-  setModalidadContinuidad,
-  montoContinuidad = 0,
-  setMontoContinuidad,
-  detalleContinuidad = "Hosting Reseller cPanel, casillas corporativas, SSL y copias de seguridad semanales.",
-  setDetalleContinuidad,
-  tokenPublico,
 }) => {
-  const [newClient, setNewClient] = useState({ 
-    nombre: "", 
-    telefono: "", 
-    social_instagram: "", 
-    social_linkedin: "", 
-    social_web: "" 
-  });
+  const [activeTab, setActiveTab] = useState<"general" | "items" | "condiciones">("general");
+
+  // Modal para creación rápida de nuevo cliente
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [newClient, setNewClient] = useState({ 
+    nombre: "", 
+    contacto: "",
+    telefono: "", 
+    email: "",
+    rut: "",
+    social_web: "" 
+  });
 
-  const handleCreateClient = async () => {
-    if (!newClient.nombre || isCreatingClient) return;
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClient.nombre.trim() || isCreatingClient) return;
     setIsCreatingClient(true);
     try {
-      await onAddClient(newClient);
+      await onAddClient({
+        nombre: newClient.nombre.trim(),
+        contacto: newClient.contacto.trim(),
+        telefono: newClient.telefono.trim(),
+        email: newClient.email.trim(),
+        rut: newClient.rut.trim(),
+        social_web: newClient.social_web.trim(),
+        tipo_registro: "prospecto",
+        estado: "prospecto"
+      });
       setNewClient({ 
         nombre: "", 
+        contacto: "",
         telefono: "", 
-        social_instagram: "", 
-        social_linkedin: "", 
+        email: "",
+        rut: "",
         social_web: "" 
       });
       setIsClientDialogOpen(false);
@@ -136,103 +166,299 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
     }
   };
 
-  const currentClienteName = clientes.find(c => c.id === selectedCliente)?.nombre;
+  const handleSelectFromCatalogo = (servicioId: string | null) => {
+    if (!servicioId) return;
+    const s = catalogo.find(item => item.id === servicioId);
+    if (s) {
+      addItem({
+        descripcion: s.descripcion,
+        precio: s.precio_base || 0,
+        cantidad: 1,
+        total: s.precio_base || 0
+      });
+    }
+  };
+
+  const resetDefaultCondiciones = () => {
+    if (setCondicionesComerciales) {
+      setCondicionesComerciales(
+        "• Forma de Pago: 50% de anticipo al inicio de los trabajos y 50% contra entrega conforme y paso a producción.\n• Plazo de Entrega: Estimado conforme a cronograma acordado tras validación del anticipo.\n• Validez de la Oferta: 15 días corridos a contar de la fecha de emisión del documento.\n• Continuidad y Garantía: Incluye 12 meses de soporte técnico, hosting administrado y respaldo ante incidencias."
+      );
+    }
+  };
+
+  const currentCliente = clientes.find(c => c.id === selectedCliente || c.nombre === selectedCliente);
+  const clientDisplayName = currentCliente?.nombre || (clienteNombre && clienteNombre !== "Cliente" ? clienteNombre : "");
+
+  const getEstadoBadgeStyle = (est: PresupuestoEstado) => {
+    switch (est) {
+      case "enviado":
+      case "emitido":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      case "en_negociacion":
+        return "bg-sky-500/20 text-sky-300 border-sky-500/30";
+      case "aprobado":
+        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+      case "rechazado":
+        return "bg-rose-500/20 text-rose-300 border-rose-500/30";
+      case "vencido":
+        return "bg-zinc-800 text-zinc-400 border-zinc-700";
+      case "borrador":
+      default:
+        return "bg-slate-800 text-slate-300 border-slate-700";
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background overflow-hidden border-t border-white/5">
+    <div className="flex flex-col h-full w-full bg-background text-foreground overflow-hidden">
       
-      {/* AREA DE CONTENIDO CON SCROLL NATIVO - MAS FIABLE */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted">
-        <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-12 px-4 sm:px-12 py-6 sm:py-16">
-          
-          {/* Header Seccionado */}
-          <div className="flex flex-col gap-6 sm:gap-10">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h1 className="text-2xl sm:text-4xl font-black tracking-tighter text-foreground leading-none">Presupuesto</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground font-medium flex items-center gap-2">
-                  <BadgePercent className="h-3 w-3 sm:h-4 sm:w-4 text-[#abaafd]" /> Configuración comercial
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={onPreview} className="gap-2 rounded-xl border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 px-4 sm:px-6 font-bold h-9 sm:h-11">
-                <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Previsualizar</span>
-              </Button>
+      {/* 1. Header Único y Ejecutivo (Estilo ClienteTabsDetail) */}
+      <div className="p-4 sm:px-6 sm:py-4 border-b border-white/10 bg-card/70 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-tr from-[#2e3c7e] to-[#abaafd] text-white flex items-center justify-center font-black text-sm sm:text-base shadow-md shrink-0">
+            COT
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black tracking-tight text-foreground truncate">
+                Cotización N° {numero}
+              </h2>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${getEstadoBadgeStyle(estado)}`}>
+                {estado.toUpperCase()}
+              </span>
             </div>
+            <p className="text-xs text-muted-foreground font-medium truncate mt-0.5">
+              {clientDisplayName ? `${clientDisplayName} • ` : ""}
+              Hoja SpA Propuesta Comercial
+            </p>
+          </div>
+        </div>
 
-            {/* Cliente y Proyecto */}
-            <div className="grid gap-8">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-[#abaafd]">Información del Cliente</Label>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onPreview}
+            className="h-9 px-3 text-xs font-bold rounded-xl gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span>Previsualizar</span>
+          </Button>
+
+          {onClose && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-9 w-9 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-foreground"
+              title="Cerrar formulario"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Barra de Navegación por Pestañas */}
+      <div className="px-4 sm:px-6 border-b border-white/10 bg-card/40 flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab("general")}
+          className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b-2 text-xs font-black transition-all whitespace-nowrap ${
+            activeTab === "general"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Building2 className="h-3.5 w-3.5" />
+          <span>1. Cliente & Proyecto</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("items")}
+          className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b-2 text-xs font-black transition-all whitespace-nowrap ${
+            activeTab === "items"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          <span>2. Servicios & Valores ({items.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("condiciones")}
+          className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b-2 text-xs font-black transition-all whitespace-nowrap ${
+            activeTab === "condiciones"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CreditCard className="h-3.5 w-3.5" />
+          <span>3. Condiciones Pág. 2</span>
+        </button>
+      </div>
+
+      {/* 3. Área de Contenido Compacto con Scroll Fluido */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-muted">
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
+
+          {/* ======================================================== */}
+          {/* PESTAÑA 1: CLIENTE Y PROYECTO (COMPACTO) */}
+          {/* ======================================================== */}
+          {activeTab === "general" && (
+            <div className="space-y-4 animate-in fade-in-50 duration-150">
+              {/* Tarjeta 1: Cliente & Configuración Comercial */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                    Asignación del Cliente & Moneda
+                  </span>
+
+                  {/* Diálogo Rápido de Cliente */}
                   <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
-                    <DialogTrigger>
-                      <span className="h-auto p-0 text-xs text-[#abaafd] font-bold cursor-pointer hover:underline flex items-center">
-                        <Plus className="h-3 w-3 mr-1" /> Nuevo Cliente
-                      </span>
-                    </DialogTrigger>
-                    <DialogContent className="!w-[95vw] sm:!max-w-[500px] border-none shadow-2xl rounded-3xl p-6 sm:p-8">
+                    <DialogTrigger render={
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 px-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-lg gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Nuevo Cliente
+                      </Button>
+                    } />
+                    <DialogContent className="max-w-md bg-card border-border shadow-2xl rounded-2xl p-5">
                       <DialogHeader>
-                        <DialogTitle className="text-2xl font-black text-[#2e3c7e] tracking-tighter">Registrar Cliente</DialogTitle>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Añadido rápido a base de datos</p>
+                        <DialogTitle className="text-lg font-black text-foreground">Crear Cliente Rápido</DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground">
+                          Se guardará en la base de datos y se asignará automáticamente a esta cotización.
+                        </DialogDescription>
                       </DialogHeader>
-                      <div className="grid gap-6 py-4">
-                        <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase text-primary/40">Nombre o Empresa</Label>
-                          <Input placeholder="Ej: Juan Perez" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl text-base" />
+
+                      <form onSubmit={handleCreateClient} className="space-y-3 py-1">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-foreground">Nombre o Empresa *</Label>
+                          <Input
+                            placeholder="Ej: Constructora Andes SpA"
+                            value={newClient.nombre}
+                            onChange={(e) => setNewClient({ ...newClient, nombre: e.target.value })}
+                            className="h-9 rounded-xl bg-muted/30 border border-white/10 text-xs sm:text-sm"
+                            required
+                          />
                         </div>
-                        <div className="grid gap-2">
-                          <Label className="text-[10px] font-black uppercase text-primary/40">Teléfono</Label>
-                          <Input placeholder="+56 9..." value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="bg-muted/50 border-none h-12 rounded-xl text-base" />
-                        </div>
-                        
-                        <div className="pt-4 border-t border-muted/20 mt-2">
-                          <Label className="text-[10px] font-black uppercase text-[#abaafd] mb-4 block">Redes Sociales / Web</Label>
-                          <div className="grid gap-3">
-                            <div className="relative">
-                              <Input placeholder="Instagram (@usuario)" value={newClient.social_instagram} onChange={e => setNewClient({...newClient, social_instagram: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
-                            </div>
-                            <div className="relative">
-                              <Input placeholder="LinkedIn (URL)" value={newClient.social_linkedin} onChange={e => setNewClient({...newClient, social_linkedin: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
-                            </div>
-                            <div className="relative">
-                              <Input placeholder="Sitio Web (https://...)" value={newClient.social_web} onChange={e => setNewClient({...newClient, social_web: e.target.value})} className="bg-muted/30 border-none h-10 pl-4 rounded-xl text-sm" />
-                            </div>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-foreground">Teléfono</Label>
+                            <Input
+                              placeholder="+56 9 1234 5678"
+                              value={newClient.telefono}
+                              onChange={(e) => setNewClient({ ...newClient, telefono: e.target.value })}
+                              className="h-9 rounded-xl bg-muted/30 border border-white/10 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-foreground">Email</Label>
+                            <Input
+                              type="email"
+                              placeholder="contacto@empresa.cl"
+                              value={newClient.email}
+                              onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                              className="h-9 rounded-xl bg-muted/30 border border-white/10 text-xs"
+                            />
                           </div>
                         </div>
-                      </div>
-                      <Button onClick={handleCreateClient} disabled={isCreatingClient} className="w-full rounded-2xl h-14 bg-[#abaafd] text-[#2e3c7e] font-black text-lg hover:scale-105 transition-all shadow-xl shadow-[#abaafd]/20">
-                        {isCreatingClient ? "Guardando..." : "Guardar Cliente"}
-                      </Button>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-foreground">RUT</Label>
+                            <Input
+                              placeholder="76.123.456-7"
+                              value={newClient.rut}
+                              onChange={(e) => setNewClient({ ...newClient, rut: e.target.value })}
+                              className="h-9 rounded-xl bg-muted/30 border border-white/10 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-foreground">Sitio Web</Label>
+                            <Input
+                              placeholder="https://empresa.cl"
+                              value={newClient.social_web}
+                              onChange={(e) => setNewClient({ ...newClient, social_web: e.target.value })}
+                              className="h-9 rounded-xl bg-muted/30 border border-white/10 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <DialogFooter className="pt-2">
+                          <Button
+                            type="submit"
+                            disabled={isCreatingClient || !newClient.nombre.trim()}
+                            className="w-full h-9 rounded-xl font-black bg-primary text-primary-foreground gap-1.5 text-xs"
+                          >
+                            {isCreatingClient ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                            <span>Guardar y Asignar</span>
+                          </Button>
+                        </DialogFooter>
+                      </form>
                     </DialogContent>
                   </Dialog>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Cliente Asignado</Label>
-                    <Select value={selectedCliente} onValueChange={(val) => setSelectedCliente(val || "")}>
-                      <SelectTrigger className="bg-muted/20 border-2 border-white/15 h-12 text-sm font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30">
-                        <SelectValue>{currentClienteName || "Selecciona un cliente..."}</SelectValue>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Cliente Asignado *</Label>
+                    <Select 
+                      value={selectedCliente} 
+                      onValueChange={(val) => {
+                        setSelectedCliente(val || "");
+                        const found = clientes.find(c => c.id === val);
+                        if (found && setClienteNombre) {
+                          setClienteNombre(found.nombre);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 sm:h-10 rounded-xl bg-muted/30 border border-white/10 text-xs sm:text-sm font-semibold">
+                        <SelectValue placeholder="Selecciona un cliente...">
+                          {clientDisplayName ? (
+                            <span className="font-semibold text-foreground">
+                              {clientDisplayName} {currentCliente?.rut ? `(${currentCliente.rut})` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground font-normal">Selecciona un cliente...</span>
+                          )}
+                        </SelectValue>
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/15 text-foreground">
-                        {clientes.map(c => <SelectItem key={c.id} value={c.id!}>{c.nombre}</SelectItem>)}
+                      <SelectContent className="bg-slate-900 border-white/15 text-foreground max-h-56">
+                        {selectedCliente && !clientes.some(c => c.id === selectedCliente) && (
+                          <SelectItem key={selectedCliente} value={selectedCliente} className="text-xs font-medium">
+                            {clientDisplayName || selectedCliente}
+                          </SelectItem>
+                        )}
+                        {clientes.map(c => (
+                          <SelectItem key={c.id} value={c.id!} className="text-xs font-medium">
+                            {c.nombre} {c.rut ? `(${c.rut})` : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Estado del Presupuesto</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Estado Comercial</Label>
                     <Select 
                       value={estado} 
                       onValueChange={(val) => {
                         if (val && setEstado) setEstado(val as PresupuestoEstado);
                       }}
                     >
-                      <SelectTrigger className="bg-muted/20 border-2 border-white/15 h-12 text-sm font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30">
+                      <SelectTrigger className="h-9 sm:h-10 rounded-xl bg-muted/30 border border-white/10 text-xs sm:text-sm font-semibold">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/15 text-foreground">
-                        <SelectItem value="borrador">📝 Borrador Interno</SelectItem>
+                      <SelectContent className="bg-slate-900 border-white/15 text-foreground text-xs font-medium">
+                        <SelectItem value="borrador">📝 Borrador (Interno)</SelectItem>
                         <SelectItem value="enviado">📤 Enviado al Cliente</SelectItem>
                         <SelectItem value="en_negociacion">💬 En Negociación / Feedback</SelectItem>
                         <SelectItem value="aprobado">✅ Aprobado</SelectItem>
@@ -243,17 +469,18 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                   </div>
                 </div>
 
-                {/* Selección Dual de Moneda: CLP vs UF */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-white/10 bg-slate-950/40">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Moneda de la Propuesta</Label>
-                    <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-white/5 items-center">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold text-muted-foreground">Moneda de Emisión</Label>
+                    <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         type="button"
                         variant={moneda === "CLP" ? "default" : "outline"}
                         onClick={() => setMoneda && setMoneda("CLP")}
-                        className={`h-11 text-xs font-black rounded-xl border-2 transition-all ${
-                          moneda === "CLP" ? "bg-primary text-primary-foreground border-primary" : "border-white/15 bg-card/60 text-slate-300 hover:bg-white/5"
+                        className={`h-8 sm:h-9 text-xs font-bold rounded-xl transition-all ${
+                          moneda === "CLP"
+                            ? "bg-primary text-primary-foreground font-black"
+                            : "border-white/10 text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         🇨🇱 CLP (Pesos)
@@ -262,8 +489,10 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                         type="button"
                         variant={moneda === "UF" ? "default" : "outline"}
                         onClick={() => setMoneda && setMoneda("UF")}
-                        className={`h-11 text-xs font-black rounded-xl border-2 transition-all ${
-                          moneda === "UF" ? "bg-primary text-primary-foreground border-primary" : "border-white/15 bg-card/60 text-slate-300 hover:bg-white/5"
+                        className={`h-8 sm:h-9 text-xs font-bold rounded-xl transition-all ${
+                          moneda === "UF"
+                            ? "bg-primary text-primary-foreground font-black"
+                            : "border-white/10 text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         📈 UF (Referencial)
@@ -271,12 +500,12 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Valor UF Referencial (CLP)</Label>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-bold text-muted-foreground">Valor UF Referencial (CLP)</Label>
                       {moneda === "UF" && (
-                        <span className="text-[10px] font-bold text-emerald-400">
-                          1 UF = ${valorUF.toLocaleString('es-CL')}
+                        <span className="text-[10px] font-bold text-emerald-400 font-mono">
+                          1 UF = ${valorUF.toLocaleString("es-CL")}
                         </span>
                       )}
                     </div>
@@ -285,349 +514,375 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                       value={valorUF}
                       onChange={(e) => setValorUF && setValorUF(Number(e.target.value) || 38000)}
                       placeholder="38000"
-                      className="bg-muted/20 border-2 border-white/15 h-11 text-sm font-bold px-4 rounded-xl shadow-inner"
+                      className="h-8 sm:h-9 rounded-xl bg-card border border-white/10 text-xs font-mono font-bold"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Nombre del Proyecto / Asunto</Label>
-                <Input 
-                  placeholder="Ej: Desarrollo de Plataforma E-commerce y Sistema POS"
-                  value={proyecto}
-                  onChange={(e) => setProyecto(e.target.value)}
-                  className="bg-muted/20 border-2 border-white/15 h-12 text-sm sm:text-base font-bold px-4 rounded-xl shadow-inner transition-all hover:bg-muted/30"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Descripción del Alcance Comercial</Label>
-                <Textarea 
-                  placeholder="Ej: El proyecto consiste en el desarrollo e implementación de..."
-                  value={descripcionProyecto}
-                  onChange={(e) => setDescripcionProyecto(e.target.value)}
-                  className="bg-muted/20 border-2 border-white/15 min-h-[90px] text-sm font-medium px-4 py-3 rounded-xl shadow-inner transition-all hover:bg-muted/30 resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla de Items */}
-          <div className="space-y-6 sm:space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 sm:gap-4 text-foreground">
-                <span className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-xs sm:text-sm">01</span>
-                Servicios
-              </h2>
-              <Button onClick={() => addItem()} size="sm" className="rounded-xl gap-2 px-4 sm:px-6 shadow-xl shadow-[#abaafd]/10 h-9 sm:h-10 bg-[#abaafd] text-[#2e3c7e] font-bold hover:scale-105 transition-all text-xs">
-                <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Añadir Item</span><span className="sm:hidden">Añadir</span>
-              </Button>
-            </div>
-
-            <div className="space-y-4 sm:space-y-6">
-              {items.map((item, index) => (
-                <Card key={index} className="border-none shadow-md bg-card/50 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300">
-                  <CardContent className="p-5 sm:p-8">
-                    <div className="grid gap-4 sm:gap-8">
-                      <div className="w-full">
-                        <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block">Descripción Detallada</Label>
-                        <Textarea 
-                          value={item.descripcion}
-                          onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
-                          placeholder="Describe el servicio..."
-                          className="bg-transparent border-none p-0 focus-visible:ring-0 min-h-[40px] sm:min-h-[60px] text-sm sm:text-lg font-bold resize-none leading-relaxed text-foreground w-full"
-                        />
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 border-t border-muted/20 pt-4 sm:pt-6">
-                        <div className="flex gap-4 sm:gap-8">
-                          <div className="flex-1 sm:w-40">
-                            <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block">Precio Unitario</Label>
-                            <div className="relative">
-                              <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs sm:text-sm">$</span>
-                              <Input 
-                                type="number"
-                                value={Number.isNaN(item.precio) ? "" : item.precio}
-                                onChange={(e) => updateItem(index, 'precio', parseFloat(e.target.value))}
-                                className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg pl-6 sm:pl-8 rounded-xl w-full"
-                              />
-                            </div>
-                          </div>
-                          <div className="w-16 sm:w-24">
-                            <Label className="text-[9px] font-black uppercase text-primary/40 mb-2 block text-center">Cant.</Label>
-                            <Input 
-                              type="number"
-                              value={Number.isNaN(item.cantidad) ? "" : item.cantidad}
-                              onChange={(e) => updateItem(index, 'cantidad', parseInt(e.target.value))}
-                              className="bg-muted/20 border-none h-10 sm:h-12 font-black text-sm sm:text-lg text-center rounded-xl w-full"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 pt-2 sm:pt-0 border-t sm:border-none border-muted/10">
-                          <div className="text-left sm:text-right">
-                            <Label className="text-[9px] font-black uppercase text-secondary/40 mb-1 block">Total Item</Label>
-                            <span className="font-black text-secondary text-lg sm:text-2xl">${item.total.toLocaleString()}</span>
-                          </div>
-                          <Button variant="ghost" size="icon" onClick={() => removeItem(index)} className="h-10 w-10 sm:h-12 sm:w-12 text-destructive/40 hover:text-destructive hover:bg-destructive/5 rounded-xl">
-                            <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Servicios Opcionales */}
-          <div className="space-y-6 sm:space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 sm:gap-4 text-foreground">
-                <span className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#abaafd] text-[#2e3c7e] shadow-lg shadow-[#abaafd]/20 text-xs sm:text-sm">02</span>
-                Opcionales
-              </h2>
-              <Button onClick={addOptionalItem} size="sm" variant="outline" className="rounded-xl gap-2 px-4 sm:px-6 border-[#abaafd]/30 text-[#abaafd] hover:bg-[#abaafd]/10 h-9 sm:h-10 font-bold text-xs">
-                <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Añadir Opcional</span><span className="sm:hidden">Añadir</span>
-              </Button>
-            </div>
-
-            <div className="grid gap-3 sm:gap-4">
-              {optionalItems.map((item, index) => (
-                <div key={index} className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 bg-muted/20 p-4 sm:p-6 rounded-xl sm:rounded-2xl group transition-all hover:bg-muted/30">
-                  <Input 
-                    value={item.descripcion}
-                    onChange={(e) => updateOptionalItem(index, 'descripcion', e.target.value)}
-                    placeholder="Mantenimiento, Hosting..."
-                    className="flex-1 bg-transparent border-none font-bold text-base sm:text-xl text-foreground placeholder:text-muted-foreground/30 h-8 sm:h-auto"
-                  />
-                  <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-none border-muted/10 pt-3 sm:pt-0">
-                    <div className="relative flex-1 sm:flex-none">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">$</span>
-                      <Input 
-                        type="number"
-                        value={Number.isNaN(item.precio) ? "" : item.precio}
-                        onChange={(e) => updateOptionalItem(index, 'precio', parseFloat(e.target.value))}
-                        className="w-full sm:w-32 bg-muted/40 border-none h-10 sm:h-12 font-black text-center pl-6 rounded-xl text-sm"
-                      />
-                    </div>
-                    <Select value={item.frecuencia} onValueChange={(val) => { if (val) updateOptionalItem(index, 'frecuencia', val); }}>
-                      <SelectTrigger className="w-28 sm:w-36 bg-muted/40 border-none h-10 sm:h-12 font-bold rounded-xl text-xs sm:text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Mensual">Mensual</SelectItem>
-                        <SelectItem value="Anual">Anual</SelectItem>
-                        <SelectItem value="Pago Único">Pago Único</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" onClick={() => removeOptionalItem(index)} className="h-10 w-10 text-muted-foreground/20 hover:text-destructive">
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bloque 1: Desarrollo e Implementación (Cobro único, 50/50) */}
-          <div className="space-y-4 p-6 rounded-2xl border-2 border-white/15 bg-slate-900/60 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-black">
-                  B1
-                </span>
-                Desarrollo e Implementación (Cobro Único)
-              </h3>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
-                50% Anticipo / 50% Entrega
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div className="p-4 rounded-xl border border-white/10 bg-card/60">
-                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-1">
-                  1. Anticipo para Inicio (50%)
-                </span>
-                <span className="text-xl font-black text-emerald-400">
-                  {moneda === "UF" 
-                    ? `${(totales.total * 0.5).toLocaleString('es-CL')} UF` 
-                    : `$${Math.round(totales.total * 0.5).toLocaleString('es-CL')} CLP`}
-                </span>
-                <p className="text-[11px] text-muted-foreground mt-1">Requerido para reserva de agenda y despliegue de infraestructura base.</p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-white/10 bg-card/60">
-                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-1">
-                  2. Contra Entrega y Conformidad (50%)
-                </span>
-                <span className="text-xl font-black text-primary">
-                  {moneda === "UF" 
-                    ? `${(totales.total * 0.5).toLocaleString('es-CL')} UF` 
-                    : `$${Math.round(totales.total * 0.5).toLocaleString('es-CL')} CLP`}
-                </span>
-                <p className="text-[11px] text-muted-foreground mt-1">Contra acta de entrega, capacitación y paso a producción.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bloque 2: Continuidad, Hosting y Soporte */}
-          <div className="space-y-4 p-6 rounded-2xl border-2 border-white/15 bg-slate-900/60 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 text-xs font-black">
-                  B2
-                </span>
-                Continuidad, Hosting y Soporte Técnico
-              </h3>
-              <span className="text-xs font-bold text-slate-400">
-                Garantía y operación del sistema
-              </span>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Modalidad de Continuidad</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Button
-                    type="button"
-                    variant={modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido" ? "default" : "outline"}
-                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("incluido_ano1")}
-                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
-                      modalidadContinuidad === "incluido_ano1" || modalidadContinuidad === "ano_1_incluido" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
-                    }`}
-                  >
-                    🎁 Año 1 Incluido (Bonificado)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "default" : "outline"}
-                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("mensual")}
-                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
-                      modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
-                    }`}
-                  >
-                    🔄 Cobro Mensual desde Entrega
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={modalidadContinuidad === "anual" || modalidadContinuidad === "recurrente_anual" ? "default" : "outline"}
-                    onClick={() => setModalidadContinuidad && setModalidadContinuidad("anual")}
-                    className={`h-11 text-xs font-bold rounded-xl border-2 transition-all ${
-                      modalidadContinuidad === "anual" || modalidadContinuidad === "recurrente_anual" ? "bg-sky-600 text-white border-sky-500" : "border-white/15 bg-card text-slate-300 hover:bg-white/5"
-                    }`}
-                  >
-                    📅 Cobro Anual desde Entrega
-                  </Button>
-                </div>
-              </div>
-
-              {modalidadContinuidad !== "incluido_ano1" && modalidadContinuidad !== "ano_1_incluido" && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-wider text-slate-300">
-                    Monto Recurrente ({modalidadContinuidad === "mensual" || modalidadContinuidad === "recurrente_mensual" ? "Mensual" : "Anual"}) ({moneda})
-                  </Label>
+              {/* Tarjeta 2: Proyecto y Alcance Comercial */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 shadow-xs space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-foreground">Nombre del Proyecto / Asunto *</Label>
                   <Input
-                    type="number"
-                    value={montoContinuidad}
-                    onChange={(e) => setMontoContinuidad && setMontoContinuidad(Number(e.target.value) || 0)}
-                    placeholder="Monto de mantención y hosting..."
-                    className="bg-muted/20 border-2 border-white/15 h-11 text-sm font-bold px-4 rounded-xl shadow-inner"
+                    placeholder="Ej: Desarrollo de Plataforma Web Corporativa y Sistema de Reservas"
+                    value={proyecto}
+                    onChange={(e) => setProyecto(e.target.value)}
+                    className="h-9 sm:h-10 rounded-xl bg-muted/30 border border-white/10 text-xs sm:text-sm font-bold text-foreground"
                   />
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-wider text-slate-300">Detalle de Infraestructura y Casillas</Label>
-                <Textarea
-                  value={detalleContinuidad}
-                  onChange={(e) => setDetalleContinuidad && setDetalleContinuidad(e.target.value)}
-                  placeholder="Detalla hosting cPanel, casillas corporativas, SSL, copias de seguridad..."
-                  className="bg-muted/20 border-2 border-white/15 min-h-[70px] text-xs font-medium px-4 py-3 rounded-xl resize-none shadow-inner"
-                />
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-foreground">Alcance y Descripción Comercial</Label>
+                  <Textarea
+                    rows={3}
+                    placeholder="Describe brevemente el alcance comercial, entregables y objetivos..."
+                    value={descripcionProyecto}
+                    onChange={(e) => setDescripcionProyecto(e.target.value)}
+                    className="rounded-xl bg-muted/30 border border-white/10 text-xs font-medium leading-relaxed resize-none p-2.5"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
-
-          {/* Enlace Público Comercial */}
-          {tokenPublico && (
-            <div className="p-4 rounded-2xl border-2 border-primary/30 bg-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-primary block">
-                  🌐 Enlace Público para el Cliente (/propuesta/[token])
-                </span>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  El cliente podrá revisar la propuesta y presionar &quot;Aceptar Propuesta y Coordinar Inicio&quot;.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const url = `${window.location.origin}/propuesta/${tokenPublico}`;
-                  navigator.clipboard.writeText(url);
-                  alert("¡Enlace público copiado al portapapeles!\n" + url);
-                }}
-                className="h-10 text-xs font-bold rounded-xl border-primary/40 text-primary bg-primary/20 hover:bg-primary/30 shrink-0"
-              >
-                Copiar Enlace Público
-              </Button>
             </div>
           )}
 
-          {/* Condiciones */}
-          <div className="space-y-8">
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-4">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted text-muted-foreground shadow-sm text-sm">03</span>
-              Condiciones de Venta
-            </h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {Object.entries(params).map(([key, value]) => (
-                <div key={key} className="flex gap-6 items-center bg-card p-6 rounded-2xl shadow-sm border border-muted/10">
-                  <div className="flex-1">
-                    <Label className="text-[10px] font-black uppercase text-secondary/50 mb-2 block">{key}</Label>
-                    <Input 
-                      value={value}
-                      onChange={(e) => updateParam(key, key, e.target.value)}
-                      className="bg-transparent border-none h-10 p-0 text-lg font-black text-secondary focus-visible:ring-0"
-                    />
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => removeParam(key)} className="h-10 w-10 text-muted-foreground/20 hover:text-destructive">
-                    <Trash2 className="h-5 w-5" />
+          {/* ======================================================== */}
+          {/* PESTAÑA 2: SERVICIOS & VALORES (TABLA EJECUTIVA COMPACTA) */}
+          {/* ======================================================== */}
+          {activeTab === "items" && (
+            <div className="space-y-4 animate-in fade-in-50 duration-150">
+              {/* Barra de acción rápida */}
+              <div className="p-3 sm:p-4 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-foreground">Servicios e Ítems Cotizados</h3>
+                  <p className="text-[11px] text-muted-foreground">Tabla ejecutiva de ítems y precios de la propuesta.</p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {catalogo && catalogo.length > 0 && (
+                    <Select onValueChange={handleSelectFromCatalogo}>
+                      <SelectTrigger className="h-8 px-2.5 text-xs font-bold rounded-xl border border-white/10 bg-muted/30 w-44">
+                        <SelectValue placeholder="Desde catálogo..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/15 text-foreground max-h-56">
+                        {catalogo.map(c => (
+                          <SelectItem key={c.id} value={c.id!} className="text-xs">
+                            {c.descripcion} (${(c.precio_base || 0).toLocaleString("es-CL")})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  <Button
+                    type="button"
+                    onClick={() => addItem()}
+                    size="sm"
+                    className="h-8 px-3 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1 shadow-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Añadir Ítem
                   </Button>
                 </div>
-              ))}
+              </div>
+
+              {/* Tabla Ejecutiva de Alta Densidad */}
+              <div className="rounded-2xl border border-white/10 bg-card/60 backdrop-blur-xl overflow-hidden shadow-xs">
+                {items.length === 0 ? (
+                  <div className="p-8 text-center space-y-2">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      No has añadido ningún servicio a la propuesta aún.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => addItem()}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-primary/30 text-primary font-bold text-xs gap-1.5 h-8"
+                    >
+                      <Plus className="h-3 w-3" /> Añadir Primer Servicio
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-muted/20 text-muted-foreground font-black uppercase text-[10px] tracking-wider">
+                          <th className="py-2.5 pl-4 text-center w-8">#</th>
+                          <th className="py-2.5 px-3 text-left">Descripción del Servicio</th>
+                          <th className="py-2.5 px-2 text-center w-20">Cant.</th>
+                          <th className="py-2.5 px-2 text-right w-32">Precio Unit. ({moneda})</th>
+                          <th className="py-2.5 px-3 text-right w-32">Subtotal</th>
+                          <th className="py-2.5 pr-4 text-center w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {items.map((item, index) => (
+                          <tr key={index} className="hover:bg-muted/10 transition-colors align-top">
+                            <td className="py-2.5 pl-4 text-center font-mono text-[11px] text-muted-foreground pt-3">
+                              {index + 1}
+                            </td>
+
+                            <td className="py-2 px-3">
+                              <Textarea
+                                rows={2}
+                                placeholder="Describe el servicio entregable..."
+                                value={item.descripcion}
+                                onChange={(e) => updateItem(index, "descripcion", e.target.value)}
+                                className="min-h-[46px] rounded-lg bg-muted/20 border border-white/10 text-xs font-semibold leading-relaxed resize-none p-2 w-full"
+                              />
+                            </td>
+
+                            <td className="py-2 px-2 text-center">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={Number.isNaN(item.cantidad) ? "" : item.cantidad}
+                                onChange={(e) => updateItem(index, "cantidad", parseInt(e.target.value, 10))}
+                                className="h-9 rounded-lg bg-muted/20 border border-white/10 text-xs font-bold font-mono text-center w-20"
+                              />
+                            </td>
+
+                            <td className="py-2 px-2 text-right">
+                              <Input
+                                type="number"
+                                value={Number.isNaN(item.precio) ? "" : item.precio}
+                                onChange={(e) => updateItem(index, "precio", parseFloat(e.target.value))}
+                                className="h-9 rounded-lg bg-muted/20 border border-white/10 text-xs font-bold font-mono text-right w-32"
+                              />
+                            </td>
+
+                            <td className="py-2 px-3 text-right pt-3 font-mono font-black text-xs sm:text-sm text-primary whitespace-nowrap">
+                              {moneda === "UF"
+                                ? `${(item.total || 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`
+                                : `$${Math.round(item.total || 0).toLocaleString("es-CL")}`}
+                            </td>
+
+                            <td className="py-2 pr-4 text-center pt-2.5">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(index)}
+                                className="h-7 w-7 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
+                                title="Eliminar ítem"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Servicios Opcionales / Extras Compactos */}
+              <div className="p-3.5 rounded-2xl bg-card/40 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                      Servicios Opcionales / Recurrentes
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground">
+                      No alteran el subtotal inicial. Se presentan como adicionales para decisión del cliente.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addOptionalItem}
+                    className="h-7 px-2 text-xs font-bold rounded-lg border-border gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Añadir Extra
+                  </Button>
+                </div>
+
+                {optionalItems.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    {optionalItems.map((opt, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-white/5">
+                        <Input
+                          placeholder="Descripción del adicional (ej: Hosting cPanel mensual)..."
+                          value={opt.descripcion}
+                          onChange={(e) => updateOptionalItem(idx, "descripcion", e.target.value)}
+                          className="h-8 rounded-lg bg-card border border-white/10 text-xs font-medium flex-1"
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Monto"
+                          value={Number.isNaN(opt.precio) ? "" : opt.precio}
+                          onChange={(e) => updateOptionalItem(idx, "precio", parseFloat(e.target.value))}
+                          className="h-8 rounded-lg bg-card border border-white/10 text-xs font-bold font-mono w-24 text-right"
+                        />
+                        <Select 
+                          value={opt.frecuencia || "Mensual"} 
+                          onValueChange={(val) => { if (val) updateOptionalItem(idx, "frecuencia", val); }}
+                        >
+                          <SelectTrigger className="h-8 w-24 text-xs font-bold rounded-lg border border-white/10 bg-card">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-900 border-white/15 text-foreground text-xs">
+                            <SelectItem value="Mensual">Mensual</SelectItem>
+                            <SelectItem value="Anual">Anual</SelectItem>
+                            <SelectItem value="Pago Único">Único</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeOptionalItem(idx)}
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-400 rounded-lg shrink-0"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* PESTAÑA 3: CONDICIONES COMERCIALES (PÁGINA 2) */}
+          {/* ======================================================== */}
+          {activeTab === "condiciones" && (
+            <div className="space-y-4 animate-in fade-in-50 duration-150">
+              <div className="p-4 sm:p-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-white/5">
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-foreground">Condiciones Comerciales y Operativas</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Se imprimen directamente en la <span className="font-bold text-foreground">Página 2</span> del formato Carta junto a las cuentas.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetDefaultCondiciones}
+                    className="h-7 px-2 text-xs font-bold rounded-lg text-muted-foreground hover:text-primary gap-1"
+                    title="Restablecer condiciones oficiales de Hoja SpA"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Restablecer Plantilla
+                  </Button>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-foreground">
+                    Condiciones del Presupuesto (Un punto o viñeta por línea)
+                  </Label>
+                  <Textarea
+                    rows={6}
+                    value={condicionesComerciales || ""}
+                    onChange={(e) => setCondicionesComerciales && setCondicionesComerciales(e.target.value)}
+                    placeholder="• Forma de Pago: 50% de anticipo..."
+                    className="rounded-xl bg-muted/30 border border-white/10 text-xs font-medium leading-relaxed resize-none p-3 font-sans"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Cada línea se renderiza con un icono de verificación en la página 2.
+                  </p>
+                </div>
+              </div>
+
+              {/* Vista informativa de datos bancarios */}
+              <div className="p-4 rounded-2xl bg-muted/20 border border-white/10 space-y-2">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Cuentas Oficiales de Transferencia (Pie de Página 2)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs p-3.5 rounded-xl bg-card/60 border border-white/5">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">Razón Social</span>
+                    <span className="font-semibold text-foreground">{config?.nombre_titular || "SERVICIOS INFORMATICOS HOJA SPA"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">RUT</span>
+                    <span className="font-mono font-semibold text-foreground">{config?.rut || "78.364.078-3"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">Banco Oficial</span>
+                    <span className="font-semibold text-foreground">{config?.banco || "Banco Falabella"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">Tipo de Cuenta</span>
+                    <span className="font-semibold text-foreground">{config?.tipo_cuenta || "Cuenta Corriente"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">N° de Cuenta</span>
+                    <span className="font-mono font-semibold text-foreground">{config?.numero_cuenta || "1-983-101480-2"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold block">Email Comprobantes</span>
+                    <span className="font-semibold text-primary">{config?.email_pago || "devhoja@gmail.com"}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
-      {/* FOOTER FIJO - CON ALTURA DEFINIDA Y SHRANK ZERO */}
-      <div className="shrink-0 h-auto bg-secondary text-secondary-foreground shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/10 backdrop-blur-3xl px-4 sm:px-12 py-4 sm:py-8 z-20">
-        <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-8">
-          <div className="flex items-center justify-between sm:justify-start gap-4 sm:gap-12 flex-1 w-full">
-            <div className="flex flex-col min-w-fit">
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">Neto</span>
-              <span className="text-sm sm:text-xl font-bold">${totales.neto.toLocaleString()}</span>
+      {/* 4. Footer Fijo Integrado al Tema Oscuro (Ultra Compacto y Coherente) */}
+      <div className="shrink-0 bg-slate-950/95 border-t border-white/10 backdrop-blur-xl px-4 sm:px-6 py-2.5 z-20 shadow-2xl">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* Desglose de Totales */}
+          <div className="flex items-center gap-5 sm:gap-8 w-full sm:w-auto justify-between sm:justify-start">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">Neto</span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-foreground">
+                {moneda === "UF"
+                  ? `${totales.neto.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`
+                  : `$${totales.neto.toLocaleString("es-CL")}`}
+              </span>
             </div>
-            <div className="flex flex-col min-w-fit">
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest opacity-40">IVA (19%)</span>
-              <span className="text-sm sm:text-xl font-bold">${totales.iva.toLocaleString()}</span>
+
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">IVA (19%)</span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-foreground">
+                {moneda === "UF"
+                  ? `${totales.iva.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`
+                  : `$${totales.iva.toLocaleString("es-CL")}`}
+              </span>
             </div>
-            <div className="flex flex-col border-l border-white/10 pl-4 sm:pl-12 min-w-[120px] sm:min-w-[150px]">
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-[#abaafd] mb-0.5">Total Proyecto</span>
-              <span className="text-xl sm:text-3xl md:text-4xl font-black tracking-tighter text-[#abaafd] whitespace-nowrap">${totales.total.toLocaleString()}</span>
+
+            <div className="border-l border-white/10 pl-5 sm:pl-6">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-primary block">
+                Total
+              </span>
+              <span className="text-lg sm:text-xl font-black font-mono text-primary whitespace-nowrap">
+                {moneda === "UF"
+                  ? `${totales.total.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UF`
+                  : `$${totales.total.toLocaleString("es-CL")}`}
+              </span>
             </div>
           </div>
-          <Button 
-            onClick={onSave} 
-            disabled={isSaving} 
-            className="w-full sm:w-auto shrink-0 gap-3 sm:gap-4 rounded-xl sm:rounded-2xl h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-xl font-black shadow-2xl shadow-[#abaafd]/20 hover:scale-105 transition-all bg-[#abaafd] text-[#2e3c7e]"
-          >
-            <Save className="h-4 w-4 sm:h-5 sm:w-5" /> 
-            <span>{isSaving ? "Guardando..." : "Finalizar"}</span>
-          </Button>
+
+          {/* Botones de Acción */}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onPreview}
+              className="h-9 px-3 text-xs font-bold rounded-xl border-white/15 bg-card/60 hover:bg-white/10 gap-1.5"
+            >
+              <Eye className="h-3.5 w-3.5" /> Previsualizar
+            </Button>
+
+            <Button
+              type="button"
+              onClick={onSave}
+              disabled={isSaving}
+              className="h-9 px-5 text-xs font-black rounded-xl bg-primary text-primary-foreground hover:scale-[1.02] transition-all gap-1.5 shadow-md shadow-primary/20"
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              <span>{isSaving ? "Guardando..." : "Guardar Presupuesto"}</span>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

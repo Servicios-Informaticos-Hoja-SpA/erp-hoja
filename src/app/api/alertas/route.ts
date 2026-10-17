@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { collection, getDocs, DocumentData } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase";
 import { verifySession } from "@/lib/auth-server";
-import { AlertaOperativa, Cliente, Presupuesto, Proyecto, EventoFinanciero, Subscription } from "@/lib/types";
+import { AlertaOperativa, Cliente, Presupuesto, Proyecto, EventoFinanciero, Subscription, DeclaracionF29 } from "@/lib/types";
 import { obtenerAlertaCalendarioSII } from "@/lib/tributario-utils";
 
 export async function GET() {
@@ -12,12 +12,13 @@ export async function GET() {
   }
 
   try {
-    const [presupuestosSnap, clientesSnap, proyectosSnap, flujoSnap, subscriptionsSnap] = await Promise.all([
+    const [presupuestosSnap, clientesSnap, proyectosSnap, flujoSnap, subscriptionsSnap, f29Snap] = await Promise.all([
       getDocs(collection(db, "presupuestos")),
       getDocs(collection(db, "clientes")),
       getDocs(collection(db, "proyectos")).catch(() => ({ docs: [] as DocumentData[] })),
       getDocs(collection(db, "flujo_caja")).catch(() => ({ docs: [] as DocumentData[] })),
       getDocs(collection(db, "subscriptions")).catch(() => ({ docs: [] as DocumentData[] })),
+      getDocs(collection(db, "f29_declaraciones")).catch(() => ({ docs: [] as DocumentData[] })),
     ]);
 
     const presupuestos = presupuestosSnap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto));
@@ -25,6 +26,7 @@ export async function GET() {
     const proyectos = proyectosSnap.docs.map(d => ({ id: d.id, ...d.data() } as Proyecto));
     const flujoEventos = flujoSnap.docs.map(d => ({ id: d.id, ...d.data() } as EventoFinanciero));
     const subscriptions = subscriptionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subscription));
+    const declaracionesF29 = f29Snap.docs.map(d => ({ id: d.id, ...d.data() } as DeclaracionF29));
 
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
@@ -72,16 +74,20 @@ export async function GET() {
       }
     });
 
-    // Suscripciones y Renovaciones (Hosting, Correos, Web)
+    // Suscripciones y Servicios Recurrentes (Mantenciones a Clientes y Gastos de Infraestructura)
     subscriptions.forEach((sub: Subscription) => {
-      if (sub.estado !== "suspendido" && sub.fechaCorte) {
+      if (sub.estado !== "suspendido" && sub.estado !== "pausado" && sub.fechaCorte) {
         const corteDate = new Date(sub.fechaCorte);
         if (!isNaN(corteDate.getTime())) {
           const diffDays = Math.ceil((corteDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           const clienteMatch = clientes.find((c) => c.id === sub.clienteId || c.nombre === sub.clienteNombre);
           const telefonoWhatsApp = sub.clienteTelefono || clienteMatch?.telefono || "";
+          const nombreItem = sub.nombre || sub.dominio || "Servicio Contratado";
+          const montoStr = `${sub.monto.toLocaleString('es-CL')} ${sub.moneda}`;
+          const esCliente = sub.tipoRecurrencia === "cliente_ingreso" || Boolean(sub.clienteId);
+          const titular = esCliente ? (sub.clienteNombre || clienteMatch?.nombre || "Cliente") : (sub.proveedor || "Infraestructura");
 
-          if (diffDays < 0) {
+          if (diffDays < 0 || sub.estadoCobro === "vencido" || sub.estado === "vencido") {
             // Vencido
             alertas.push({
               id: `sub-vencida-${sub.id}`,
@@ -89,29 +95,37 @@ export async function GET() {
               prioridad: "alta",
               severidad: "alta",
               monto: sub.monto,
-              titulo: `🚨 Servicio Vencido: ${sub.dominio} (${sub.clienteNombre})`,
-              descripcion: `El servicio de ${sub.tipoServicio} para ${sub.dominio} venció el ${sub.fechaCorte}. Monto: ${sub.monto.toLocaleString('es-CL')} ${sub.moneda}.`,
+              titulo: esCliente 
+                ? `🚨 Cobro de Mantención Vencido: ${titular} (${nombreItem})` 
+                : `🚨 Gasto de Infraestructura Vencido: ${nombreItem} (${titular})`,
+              descripcion: esCliente
+                ? `Mantención por cobrar a ${titular}. Venció el ${sub.fechaCorte}. Monto pendiente: ${montoStr}.`
+                : `El servicio de infraestructura ${nombreItem} (${titular}) venció el ${sub.fechaCorte}. Monto: ${montoStr}.`,
               fechaRef: sub.fechaCorte,
               enlaceAccion: `/suscripciones`,
-              textoAccion: "Cobranza",
-              telefonoWhatsApp,
-              mensajeWhatsApp: `Estimado/a ${sub.clienteNombre}, el servicio para ${sub.dominio} se encuentra vencido. Para evitar la interrupción de correos corporativos y del sitio web, por favor confirma tu comprobante a la brevedad.`
+              textoAccion: esCliente ? "Cobrar Mantención" : "Gestionar Pago",
+              telefonoWhatsApp: esCliente ? telefonoWhatsApp : undefined,
+              mensajeWhatsApp: esCliente && telefonoWhatsApp ? `Hola ${titular}, te contacto de Servicios Informáticos Hoja SpA para recordarte que la mantención mensual (${nombreItem}) por un monto de ${montoStr} venció el ${sub.fechaCorte}. Agradecemos coordinar la transferencia o pago. ¡Muchas gracias!` : undefined
             });
-          } else if (diffDays <= 7) {
-            // Por vencer
+          } else if (diffDays <= 7 || sub.estadoCobro === "por_cobrar") {
+            // Por vencer / Por cobrar
             alertas.push({
               id: `sub-aviso-${sub.id}`,
               tipo: "suscripcion",
               prioridad: diffDays <= 3 ? "alta" : "media",
               severidad: "media",
               monto: sub.monto,
-              titulo: `⏳ Renovación en ${diffDays} días: ${sub.dominio} (${sub.clienteNombre})`,
-              descripcion: `Plan ${sub.tipoServicio} (${sub.proveedor}) vence el ${sub.fechaCorte}. Renovación: ${sub.monto.toLocaleString('es-CL')} ${sub.moneda}.`,
+              titulo: esCliente
+                ? `⏳ Cobro en ${diffDays <= 0 ? "hoy" : `${diffDays}d`}: ${titular} (${nombreItem})`
+                : `⏳ Pago en ${diffDays} días: ${nombreItem} (${titular})`,
+              descripcion: esCliente
+                ? `Corte de mantención para ${titular} el ${sub.fechaCorte}. Monto a cobrar: ${montoStr}.`
+                : `${nombreItem} (${titular}) vence el ${sub.fechaCorte}. Monto a pagar: ${montoStr}.`,
               fechaRef: sub.fechaCorte,
               enlaceAccion: `/suscripciones`,
-              textoAccion: "Ver Servicio",
-              telefonoWhatsApp,
-              mensajeWhatsApp: `Hola ${sub.clienteNombre}, te recordamos desde Servicios Informáticos Hoja SpA que el servicio de hosting y casillas corporativas para ${sub.dominio} vence el ${sub.fechaCorte}. Monto a renovar: ${sub.monto.toLocaleString('es-CL')} ${sub.moneda}. Si requieres los datos de transferencia, avísanos por este medio.`
+              textoAccion: esCliente ? "Ver Cobro" : "Ver Servicio",
+              telefonoWhatsApp: esCliente ? telefonoWhatsApp : undefined,
+              mensajeWhatsApp: esCliente && telefonoWhatsApp ? `Hola ${titular}, te escribo de Servicios Informáticos Hoja SpA para recordarte que el próximo ${sub.fechaCorte} corresponde el ciclo de mantención de ${nombreItem} (${montoStr}). Quedamos atentos.` : undefined
             });
           }
         }
@@ -198,17 +212,19 @@ export async function GET() {
       }
     });
 
-    // Alerta de Calendario Tributario SII (F29 - días 10 al 20 de cada mes)
-    const alertaF29 = obtenerAlertaCalendarioSII(flujoEventos, now);
+    // Alerta de Calendario Tributario SII (F29 - días 10 al 20 de cada mes a mes vencido)
+    const alertaF29 = obtenerAlertaCalendarioSII(flujoEventos, now, declaracionesF29);
     if (alertaF29 && alertaF29.activa) {
       alertas.push({
         id: `f29-calendario-sii-${now.getFullYear()}-${now.getMonth() + 1}`,
         tipo: "flujo_caja",
         prioridad: alertaF29.esCritica ? "alta" : "media",
         severidad: alertaF29.esCritica ? "alta" : "media",
-        titulo: alertaF29.esCritica 
-          ? `🚨 Declaración F29 (SII) Vence en ${alertaF29.diasRestantes} días` 
-          : `⚖️ Declaración y Pago F29 (${alertaF29.fechaVence})`,
+        titulo: alertaF29.sinMovimiento
+          ? (alertaF29.esCritica ? `🚨 F29 sin movimiento vence en ${alertaF29.diasRestantes} días` : `⚖️ Recordatorio F29 sin movimiento (${alertaF29.fechaVence})`)
+          : (alertaF29.esCritica 
+            ? `🚨 Declaración F29 (SII) Vence en ${alertaF29.diasRestantes} días` 
+            : `⚖️ Declaración y Pago F29 (${alertaF29.fechaVence})`),
         descripcion: alertaF29.mensaje,
         monto: alertaF29.f29Estimado,
         fechaRef: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`,
