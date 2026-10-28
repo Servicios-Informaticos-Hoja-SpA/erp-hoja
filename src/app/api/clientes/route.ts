@@ -103,11 +103,16 @@ export async function GET() {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   try {
-    const q = query(collection(db, "clientes"), orderBy("nombre", "asc"));
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await getDocs(collection(db, "clientes"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+    data.sort((a: any, b: any) => {
+      const nameA = (a.nombre || "").toString().toLowerCase();
+      const nameB = (b.nombre || "").toString().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
     return NextResponse.json(data);
   } catch (error: unknown) {
+    console.error("GET /api/clientes error:", error);
     const errorMsg = error instanceof Error ? error.message : "Error al obtener clientes";
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }

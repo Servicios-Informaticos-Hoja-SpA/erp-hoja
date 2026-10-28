@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { ZoomIn, ZoomOut, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Presupuesto, PresupuestoItem, ConfiguracionGlobal } from "@/lib/types";
+import { HOJA_LOGO_BASE64 } from "@/features/proyectos/utils/hoja-logo-base64";
 
 interface PresupuestoPreviewProps {
   id?: string;
@@ -61,10 +62,16 @@ function paginatePresupuesto(
     }];
   }
 
-  // Altura adicional por descripción general del proyecto
-  const descLines = descripcionProyecto ? Math.ceil(descripcionProyecto.length / 55) : 0;
-  const clientCardExtra = Math.min(50, descLines * 16);
-  const clientCardHeight = 80 + clientCardExtra;
+  // Altura adicional por descripción general del proyecto a ancho completo (~720px)
+  let descLines = 0;
+  if (descripcionProyecto && descripcionProyecto.trim()) {
+    const paragraphs = descripcionProyecto.trim().split("\n");
+    for (const p of paragraphs) {
+      descLines += Math.max(1, Math.ceil((p.length || 1) / 95));
+    }
+  }
+  const clientCardExtra = descLines > 0 ? (24 + descLines * 15) : 0;
+  const clientCardHeight = 60 + clientCardExtra;
 
   // Altura del bloque de totales y servicios opcionales
   const opcionalesHeight = hasServiciosOpcionales ? (40 + numServiciosOpcionales * 22) : 0;
@@ -73,8 +80,8 @@ function paginatePresupuesto(
   // Presupuesto de altura disponible por página (altura neta 955px tras descontar 80px de padding vertical)
   // Página 1: Membrete (95px) + Ficha Cliente/Proyecto (clientCardHeight) + Encabezado Tabla (36px) + Footer (32px)
   const page1TopOverhead = 95 + clientCardHeight + 36;
-  const page1AvailableNoTotals = 955 - page1TopOverhead - 32; // ~670px para tabla
-  const page1AvailableWithTotals = page1AvailableNoTotals - totalesBlockHeight; // ~535px
+  const page1AvailableNoTotals = 955 - page1TopOverhead - 32; // espacio disponible para tabla
+  const page1AvailableWithTotals = page1AvailableNoTotals - totalesBlockHeight;
 
   // Páginas de continuación: Encabezado Continuación (45px) + Encabezado Tabla (36px) + Footer (32px)
   const contTopOverhead = 45 + 36;
@@ -291,10 +298,9 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
                     <div className="flex justify-between items-start pb-5 border-b-2 border-slate-900">
                       <div className="space-y-1">
                         <img 
-                          src="/logo.png" 
+                          src={HOJA_LOGO_BASE64} 
                           alt="Hoja SpA Logo" 
                           className="h-13 w-auto object-contain" 
-                          onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.ico"; }}
                         />
                         <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">
                           Servicios Informáticos Hoja SpA &bull; RUT: 78.364.078-3
@@ -314,30 +320,38 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
                       </div>
                     </div>
 
-                    {/* Datos del Cliente y Proyecto */}
-                    <div className="grid grid-cols-2 gap-5 my-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="space-y-1">
-                        <span className="text-[9px] uppercase tracking-widest text-slate-400 font-black block">
-                          CLIENTE / EMPRESA
-                        </span>
-                        <p className="font-black text-slate-900 text-sm">
-                          {data.cliente_nombre || "Cliente no especificado"}
-                        </p>
+                    {/* Ficha Resumen: Cliente, Proyecto y Alcance General */}
+                    <div className="my-3.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="grid grid-cols-2 gap-5">
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-400 font-black block">
+                            CLIENTE / EMPRESA
+                          </span>
+                          <p className="font-black text-slate-900 text-sm leading-tight">
+                            {data.cliente_nombre || "Cliente no especificado"}
+                          </p>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-400 font-black block">
+                            PROYECTO / ASUNTO
+                          </span>
+                          <p className="font-bold text-slate-900 text-sm leading-tight">
+                            {data.nombre_proyecto || "Servicios Digitales y Desarrollo Tecnológico"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[9px] uppercase tracking-widest text-slate-400 font-black block">
-                          PROYECTO / ASUNTO
-                        </span>
-                        <p className="font-bold text-slate-900 text-sm">
-                          {data.nombre_proyecto || "Servicios Digitales y Desarrollo Tecnológico"}
-                        </p>
-                        {data.descripcion_proyecto && (
-                          <p className="text-[10.5px] text-slate-600 font-medium leading-relaxed whitespace-pre-wrap mt-0.5 line-clamp-3">
+                      {data.descripcion_proyecto && data.descripcion_proyecto.trim() && (
+                        <div className="mt-2.5 pt-2.5 border-t border-slate-200/80">
+                          <span className="text-[8.5px] uppercase tracking-wider text-slate-400 font-bold block mb-0.5">
+                            OBJETIVO Y ALCANCE GENERAL
+                          </span>
+                          <p className="text-[10px] text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
                             {data.descripcion_proyecto}
                           </p>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -345,10 +359,9 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
                   <div className="flex justify-between items-center pb-3 border-b-2 border-slate-900 mb-4">
                     <div className="flex items-center gap-2.5">
                       <img 
-                        src="/logo.png" 
+                        src={HOJA_LOGO_BASE64} 
                         alt="Hoja SpA Logo" 
                         className="h-7 w-auto object-contain" 
-                        onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.ico"; }}
                       />
                       <div>
                         <span className="font-black text-xs tracking-tight text-slate-900 uppercase">
@@ -503,10 +516,9 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
             <div className="flex justify-between items-center pb-4 border-b-2 border-slate-900 mb-5">
               <div className="flex items-center gap-2">
                 <img 
-                  src="/logo.png" 
+                  src={HOJA_LOGO_BASE64} 
                   alt="Hoja SpA Logo" 
                   className="h-8 w-auto object-contain" 
-                  onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.ico"; }}
                 />
                 <span className="font-black text-xs tracking-tight text-slate-900 uppercase">
                   SERVICIOS INFORMÁTICOS HOJA SPA

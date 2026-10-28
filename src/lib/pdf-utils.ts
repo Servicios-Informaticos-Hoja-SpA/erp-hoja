@@ -1,9 +1,14 @@
+import { HOJA_LOGO_BASE64 } from "@/features/proyectos/utils/hoja-logo-base64";
+
 /**
  * Generador robusto de PDF para presupuestos y documentos institucionales
  * Compatible con Tailwind CSS v4, Firefox/Chrome, html2canvas y jsPDF
  */
 
-// Helper para convertir cualquier función moderna de color (lab, oklch, oklab, lch) a rgb estándar
+let sharedCanvas: HTMLCanvasElement | null = null;
+let sharedCtx: CanvasRenderingContext2D | null = null;
+
+// Helper para convertir cualquier función moderna de color (lab, oklch, oklab, lch, color-mix) a rgb estándar
 // usando el motor nativo del navegador (canvas 2D).
 function convertColorToRgb(val: string): string {
   if (!val || typeof val !== "string") return val;
@@ -11,42 +16,84 @@ function convertColorToRgb(val: string): string {
     !val.includes("lab(") && 
     !val.includes("oklch(") && 
     !val.includes("oklab(") && 
-    !val.includes("lch(")
+    !val.includes("lch(") &&
+    !val.includes("color(") &&
+    !val.includes("color-mix(")
   ) {
     return val;
   }
 
-  return val.replace(/(?:oklch|oklab|lab|lch)\([^)]+\)/gi, (match) => {
+  return val.replace(/(?:color-mix|oklch|oklab|lab|lch|color)\([^)]+\)/gi, (match) => {
     try {
       if (typeof document === "undefined") return "rgb(15, 23, 42)";
-      const canvas = document.createElement("canvas");
-      canvas.width = 1;
-      canvas.height = 1;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return "rgb(15, 23, 42)";
-      ctx.fillStyle = match;
-      return ctx.fillStyle || "rgb(15, 23, 42)";
+      if (!sharedCanvas) {
+        sharedCanvas = document.createElement("canvas");
+        sharedCanvas.width = 1;
+        sharedCanvas.height = 1;
+        sharedCtx = sharedCanvas.getContext("2d", { willReadFrequently: true });
+      }
+      if (!sharedCtx) return "rgb(15, 23, 42)";
+
+      sharedCtx.clearRect(0, 0, 1, 1);
+      sharedCtx.fillStyle = "#000000";
+      sharedCtx.fillStyle = match;
+
+      const fs = sharedCtx.fillStyle;
+      if (fs && (fs.startsWith("#") || fs.startsWith("rgb"))) {
+        return fs;
+      }
+
+      // Fallback infalible mediante lectura de búfer sRGB del píxel renderizado
+      sharedCtx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = sharedCtx.getImageData(0, 0, 1, 1).data;
+      if (a === 0) return "transparent";
+      return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(2)})`;
     } catch {
       return "rgb(15, 23, 42)";
     }
   });
 }
 
+const IS_PROXY_KEY = Symbol("IS_STYLE_PROXY");
+
 // Proxy sobre CSSStyleDeclaration para interceptar lecturas de propiedades y convertirlas a RGB
+// Se evita pasar 'receiver' para preservar el branding check nativo de Firefox/Chrome en getters de CSS
 function createStyleProxy(styleDecl: CSSStyleDeclaration): CSSStyleDeclaration {
+  if (!styleDecl) return styleDecl;
+  if ((styleDecl as any)[IS_PROXY_KEY]) return styleDecl;
+
   return new Proxy(styleDecl, {
-    get(target, prop, receiver) {
-      const orig = Reflect.get(target, prop, receiver);
-      if (typeof orig === "string") {
-        return convertColorToRgb(orig);
+    get(target, prop) {
+      if (prop === IS_PROXY_KEY) return true;
+      try {
+        if (typeof prop === "symbol") {
+          return (target as any)[prop];
+        }
+
+        const orig = (target as any)[prop];
+
+        if (typeof orig === "function") {
+          if (prop === "getPropertyValue") {
+            return (propertyName: string) => {
+              try {
+                const val = target.getPropertyValue(propertyName);
+                return convertColorToRgb(val);
+              } catch {
+                return "";
+              }
+            };
+          }
+          return orig.bind(target);
+        }
+
+        if (typeof orig === "string") {
+          return convertColorToRgb(orig);
+        }
+
+        return orig;
+      } catch {
+        return undefined;
       }
-      if (typeof orig === "function" && prop === "getPropertyValue") {
-        return (propertyName: string) => {
-          const val = target.getPropertyValue(propertyName);
-          return convertColorToRgb(val);
-        };
-      }
-      return orig;
     }
   });
 }
@@ -75,6 +122,7 @@ export const generatePDF = async (
   // 2. Interceptar window.getComputedStyle durante la generación del PDF para neutralizar lab() y oklch()
   const originalGetComputedStyle = window.getComputedStyle;
   window.getComputedStyle = function (elt: Element, pseudoElt?: string | null) {
+    if (!elt) return originalGetComputedStyle.call(window, elt, pseudoElt);
     const realStyle = originalGetComputedStyle.call(window, elt, pseudoElt);
     return createStyleProxy(realStyle);
   };
@@ -93,6 +141,7 @@ export const generatePDF = async (
         if (clonedDoc.defaultView) {
           const origIframeStyle = clonedDoc.defaultView.getComputedStyle;
           clonedDoc.defaultView.getComputedStyle = function (elt: Element, pseudoElt?: string | null) {
+            if (!elt) return origIframeStyle.call(clonedDoc.defaultView, elt, pseudoElt);
             const realStyle = origIframeStyle.call(clonedDoc.defaultView, elt, pseudoElt);
             return createStyleProxy(realStyle);
           };
@@ -112,6 +161,14 @@ export const generatePDF = async (
           const s = el.getAttribute("style");
           if (s && (s.includes("lab(") || s.includes("oklch("))) {
             el.setAttribute("style", convertColorToRgb(s));
+          }
+        });
+
+        // Sustituir imágenes del logo con base64 para evitar peticiones de red o bloqueos CORS
+        const allImgs = clonedDoc.querySelectorAll("img");
+        allImgs.forEach((img) => {
+          if (img.src && (img.src.includes("logo.png") || img.src.includes("favicon.ico"))) {
+            img.src = HOJA_LOGO_BASE64;
           }
         });
       } catch (err) {
@@ -139,8 +196,8 @@ export const generatePDF = async (
 
         const canvas = await html2canvas(pageEl, {
           scale: 2,
-          useCORS: false,
-          allowTaint: true,
+          useCORS: true,
+          allowTaint: false,
           logging: false,
           backgroundColor: "#ffffff",
           windowWidth: 850,
@@ -187,8 +244,8 @@ export const generatePDF = async (
     // Fallback: renderizado de contenedor continuo si no hay páginas discretas
     const canvas = await html2canvas(element, {
       scale: 2,
-      useCORS: false,
-      allowTaint: true,
+      useCORS: true,
+      allowTaint: false,
       logging: false,
       backgroundColor: "#ffffff",
       windowWidth: 1000,

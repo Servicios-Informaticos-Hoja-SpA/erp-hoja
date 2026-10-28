@@ -189,7 +189,7 @@ export default function PropuestaPublicaPage() {
             <CardContent className="p-6 space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">PROYECTO</span>
               <p className="text-xl font-black text-indigo-300">{presupuesto.nombre_proyecto || "Solución Tecnológica a Medida"}</p>
-              <p className="text-xs text-slate-400 line-clamp-2">
+              <p className="text-xs text-slate-400 mt-1 whitespace-pre-wrap leading-relaxed">
                 {presupuesto.descripcion_proyecto || "Desarrollo de plataforma digital y arquitectura de continuidad."}
               </p>
             </CardContent>
