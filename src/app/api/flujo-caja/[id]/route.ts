@@ -10,31 +10,31 @@ import { verifySession } from "@/lib/auth-server";
 import { z } from "zod";
 
 const eventoUpdateSchema = z.object({
-  concepto: z.string().optional(),
-  monto: z.number().optional(),
-  montoNeto: z.number().optional(),
-  ivaMonto: z.number().optional(),
-  montoTotal: z.number().optional(),
-  aplicaFactura: z.boolean().optional(),
-  deducibleIva: z.boolean().optional(),
-  numeroFactura: z.string().optional(),
-  fechaFactura: z.string().optional(),
-  rutContraparte: z.string().optional(),
-  razonSocialContraparte: z.string().optional(),
-  tipoComprobante: z.enum(["factura", "boleta", "honorarios", "sin_comprobante"]).optional(),
-  proyectoId: z.string().optional(),
-  proyectoNombre: z.string().optional(),
-  clienteId: z.string().optional(),
-  clienteNombre: z.string().optional(),
-  clienteRut: z.string().optional(),
-  hitoPagoId: z.string().optional(),
-  fechaVencimiento: z.string().optional(),
-  fechaPago: z.string().optional(),
-  estado: z.enum(["pendiente", "cobrado", "pagado", "vencido"]).optional(),
-  esRecurrente: z.boolean().optional(),
-  frecuencia: z.enum(["mensual", "anual"]).optional(),
-  recordatorioDiasAntes: z.number().optional(),
-  notas: z.string().optional(),
+  concepto: z.string().optional().nullable(),
+  monto: z.number().optional().nullable(),
+  montoNeto: z.number().optional().nullable(),
+  ivaMonto: z.number().optional().nullable(),
+  montoTotal: z.number().optional().nullable(),
+  aplicaFactura: z.boolean().optional().nullable(),
+  deducibleIva: z.boolean().optional().nullable(),
+  numeroFactura: z.string().optional().nullable(),
+  fechaFactura: z.string().optional().nullable(),
+  rutContraparte: z.string().optional().nullable(),
+  razonSocialContraparte: z.string().optional().nullable(),
+  tipoComprobante: z.enum(["factura", "boleta", "honorarios", "sin_comprobante"]).optional().nullable(),
+  proyectoId: z.string().optional().nullable(),
+  proyectoNombre: z.string().optional().nullable(),
+  clienteId: z.string().optional().nullable(),
+  clienteNombre: z.string().optional().nullable(),
+  clienteRut: z.string().optional().nullable(),
+  hitoPagoId: z.string().optional().nullable(),
+  fechaVencimiento: z.string().optional().nullable(),
+  fechaPago: z.string().optional().nullable(),
+  estado: z.enum(["pendiente", "cobrado", "pagado", "vencido"]).optional().nullable(),
+  esRecurrente: z.boolean().optional().nullable(),
+  frecuencia: z.enum(["mensual", "anual"]).optional().nullable(),
+  recordatorioDiasAntes: z.number().optional().nullable(),
+  notas: z.string().optional().nullable(),
 }).partial();
 
 export async function PUT(
@@ -46,6 +46,12 @@ export async function PUT(
   }
   try {
     const { id } = await params;
+    if (id.startsWith("sub-") || id.startsWith("hito-")) {
+      return NextResponse.json({ 
+        error: "Los registros proyectados de suscripciones o hitos de proyecto deben gestionarse desde sus respectivos módulos." 
+      }, { status: 400 });
+    }
+
     const body = await request.json();
     
     const result = eventoUpdateSchema.safeParse(body);
@@ -56,11 +62,16 @@ export async function PUT(
       }, { status: 400 });
     }
 
+    const cleanData: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(result.data)) {
+      if (v !== undefined) {
+        cleanData[k] = v;
+      }
+    }
+    cleanData.updatedAt = new Date().toISOString();
+
     const docRef = doc(db, "flujo_caja", id);
-    await updateDoc(docRef, {
-      ...result.data,
-      updatedAt: new Date().toISOString()
-    });
+    await updateDoc(docRef, cleanData);
     
     return NextResponse.json({ message: "Evento financiero actualizado" });
   } catch (error: unknown) {
@@ -78,6 +89,12 @@ export async function DELETE(
   }
   try {
     const { id } = await params;
+    if (id.startsWith("sub-") || id.startsWith("hito-")) {
+      return NextResponse.json({ 
+        error: "Los registros proyectados de suscripciones o hitos de proyecto no se pueden eliminar desde el flujo de caja." 
+      }, { status: 400 });
+    }
+
     const docRef = doc(db, "flujo_caja", id);
     await deleteDoc(docRef);
     return NextResponse.json({ message: "Evento financiero eliminado" });

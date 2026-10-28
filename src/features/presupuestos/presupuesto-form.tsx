@@ -134,7 +134,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
   const totalFinal = useMemo(() => neto + iva, [neto, iva]);
 
   const addItem = () => {
-    setItems([...items, { descripcion: "", precio: 0, cantidad: 1, total: 0 }]);
+    setItems([...items, { descripcion: "", detalle: "", precio: 0, cantidad: 1, total: 0 }]);
   };
 
   const removeItem = (index: number) => {
@@ -153,7 +153,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
   };
 
   const addOptionalItem = () => {
-    setOptionalItems([...optionalItems, { descripcion: "", precio: 0, cantidad: 1, total: 0, frecuencia: "Mensual" }]);
+    setOptionalItems([...optionalItems, { descripcion: "", detalle: "", precio: 0, cantidad: 1, total: 0, frecuencia: "Mensual" }]);
   };
 
   const removeOptionalItem = (index: number) => {
@@ -203,6 +203,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
     const sanitizedItems = items.map(item => ({
       ...item,
       descripcion: item.descripcion || "Item sin descripción",
+      detalle: item.detalle?.trim() || "",
       precio: Number(item.precio) || 0,
       cantidad: Number(item.cantidad) || 1,
       total: (Number(item.precio) || 0) * (Number(item.cantidad) || 1),
@@ -211,6 +212,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
     const sanitizedOptionalItems = optionalItems.map(item => ({
       ...item,
       descripcion: item.descripcion || "Opcional",
+      detalle: item.detalle?.trim() || "",
       precio: Number(item.precio) || 0,
       cantidad: Number(item.cantidad) || 1,
       total: (Number(item.precio) || 0) * (Number(item.cantidad) || 1),

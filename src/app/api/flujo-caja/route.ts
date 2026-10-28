@@ -17,35 +17,36 @@ const eventoFinancieroSchema = z.object({
     "cobro_proyecto", 
     "recurrente_cliente", 
     "renovacion_infraestructura", 
-    "gasto_operativo"
-  ]),
-  referenciaId: z.string().optional(),
-  referenciaNombre: z.string().optional(),
-  concepto: z.string().min(2, "El concepto es obligatorio"),
+    "gasto_operativo",
+    "saldo_inicial"
+  ]).optional().nullable(),
+  referenciaId: z.string().optional().nullable(),
+  referenciaNombre: z.string().optional().nullable(),
+  concepto: z.string().min(1, "El concepto es obligatorio"),
   monto: z.number().min(0, "El monto debe ser positivo"),
-  montoNeto: z.number().optional(),
-  ivaMonto: z.number().optional(),
-  montoTotal: z.number().optional(),
-  aplicaFactura: z.boolean().optional(),
-  deducibleIva: z.boolean().optional(),
-  numeroFactura: z.string().optional(),
-  fechaFactura: z.string().optional(),
-  rutContraparte: z.string().optional(),
-  razonSocialContraparte: z.string().optional(),
-  tipoComprobante: z.enum(["factura", "boleta", "honorarios", "sin_comprobante"]).optional(),
-  proyectoId: z.string().optional(),
-  proyectoNombre: z.string().optional(),
-  clienteId: z.string().optional(),
-  clienteNombre: z.string().optional(),
-  clienteRut: z.string().optional(),
-  hitoPagoId: z.string().optional(),
+  montoNeto: z.number().optional().nullable(),
+  ivaMonto: z.number().optional().nullable(),
+  montoTotal: z.number().optional().nullable(),
+  aplicaFactura: z.boolean().optional().nullable(),
+  deducibleIva: z.boolean().optional().nullable(),
+  numeroFactura: z.string().optional().nullable(),
+  fechaFactura: z.string().optional().nullable(),
+  rutContraparte: z.string().optional().nullable(),
+  razonSocialContraparte: z.string().optional().nullable(),
+  tipoComprobante: z.enum(["factura", "boleta", "honorarios", "sin_comprobante"]).optional().nullable(),
+  proyectoId: z.string().optional().nullable(),
+  proyectoNombre: z.string().optional().nullable(),
+  clienteId: z.string().optional().nullable(),
+  clienteNombre: z.string().optional().nullable(),
+  clienteRut: z.string().optional().nullable(),
+  hitoPagoId: z.string().optional().nullable(),
   fechaVencimiento: z.string().min(4, "La fecha de vencimiento es obligatoria"),
-  fechaPago: z.string().optional(),
-  estado: z.enum(["pendiente", "cobrado", "pagado", "vencido"]).default("pendiente"),
+  fechaPago: z.string().optional().nullable(),
+  estado: z.enum(["pendiente", "cobrado", "pagado", "vencido"]).optional().nullable(),
   esRecurrente: z.boolean().optional().default(false),
-  frecuencia: z.enum(["mensual", "anual"]).optional(),
+  frecuencia: z.enum(["mensual", "anual"]).optional().nullable(),
   recordatorioDiasAntes: z.number().optional().default(5),
-  notas: z.string().optional(),
+  notas: z.string().optional().nullable(),
 });
 
 export async function GET() {
@@ -79,75 +80,138 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const itemData = { ...result.data };
-    const valorBase = itemData.montoTotal ?? itemData.monto;
+    const raw = result.data;
 
-    const conceptoLower = (itemData.concepto || "").toLowerCase();
+    // Normalizar categoría
+    let categoria = raw.categoria;
+    if (!categoria || (raw.tipo === "egreso" && categoria === "cobro_proyecto")) {
+      categoria = raw.tipo === "egreso" ? "gasto_operativo" : "cobro_proyecto";
+    }
+
+    // Normalizar estado
+    let estado = raw.estado || "pendiente";
+    if (raw.tipo === "egreso" && estado === "cobrado") {
+      estado = "pagado";
+    } else if (raw.tipo === "ingreso" && estado === "pagado") {
+      estado = "cobrado";
+    }
+
+    const valorBase = raw.montoTotal ?? raw.monto;
+    const conceptoLower = (raw.concepto || "").toLowerCase();
     const esSaldoInicial = 
-      (itemData.categoria as string) === "saldo_inicial" ||
+      categoria === "saldo_inicial" ||
       conceptoLower.includes("saldo inicial") ||
       conceptoLower.includes("caja inicial") ||
       conceptoLower.includes("aporte de capital") ||
       conceptoLower.includes("ingreso inicial") ||
-      itemData.tipoComprobante === "sin_comprobante";
+      raw.tipoComprobante === "sin_comprobante";
 
     // Solo es venta con factura si tiene número de factura o es comprobante factura y NO es saldo inicial
+    const tieneNumeroFactura = Boolean(raw.numeroFactura && raw.numeroFactura.trim().length > 0);
     const esVentaConFactura = 
-      itemData.tipo === "ingreso" &&
+      raw.tipo === "ingreso" &&
       !esSaldoInicial &&
       Boolean(
-        (itemData.numeroFactura && itemData.numeroFactura.trim().length > 0) ||
-        itemData.tipoComprobante === "factura" ||
-        itemData.aplicaFactura === true
+        tieneNumeroFactura ||
+        raw.tipoComprobante === "factura" ||
+        raw.aplicaFactura === true
       );
 
     // Regla de Negocio: En egresos/gastos, SOLO generan Crédito Fiscal IVA si
     // están asociados a un proyecto Y tienen factura asociada.
+    const tieneProyecto = Boolean(
+      (raw.proyectoId && raw.proyectoId !== "ninguno") || 
+      (raw.referenciaId && raw.referenciaId !== "ninguno")
+    );
+
     const esGastoProyectoConFactura = 
-      itemData.tipo === "egreso" && 
+      raw.tipo === "egreso" && 
       !esSaldoInicial &&
-      Boolean((itemData.proyectoId && itemData.proyectoId !== "ninguno") || itemData.referenciaId) && 
-      Boolean(
-        (itemData.numeroFactura && itemData.numeroFactura.trim().length > 0) || 
-        itemData.tipoComprobante === "factura"
-      ) &&
-      itemData.tipoComprobante !== "sin_comprobante" &&
-      itemData.tipoComprobante !== "boleta" &&
-      itemData.deducibleIva !== false;
+      tieneProyecto && 
+      Boolean(tieneNumeroFactura || raw.tipoComprobante === "factura") &&
+      raw.tipoComprobante !== "sin_comprobante" &&
+      raw.tipoComprobante !== "boleta" &&
+      raw.deducibleIva !== false;
+
+    let finalMontoTotal = valorBase;
+    let finalMontoNeto = valorBase;
+    let finalIvaMonto = 0;
+    let finalAplicaFactura = false;
+    let finalDeducibleIva = false;
+    let finalTipoComprobante = raw.tipoComprobante || (esSaldoInicial ? "sin_comprobante" : "factura");
+    let finalNumeroFactura = esSaldoInicial ? undefined : (raw.numeroFactura?.trim() || undefined);
 
     if (esVentaConFactura) {
       // Venta afecta a IVA 19% con factura
-      itemData.montoTotal = valorBase;
-      itemData.montoNeto = itemData.montoNeto ?? Math.round(valorBase / 1.19);
-      itemData.ivaMonto = itemData.ivaMonto ?? (valorBase - itemData.montoNeto);
-      itemData.aplicaFactura = true;
-      itemData.deducibleIva = false;
+      finalMontoTotal = valorBase;
+      finalMontoNeto = raw.montoNeto ?? Math.round(valorBase / 1.19);
+      finalIvaMonto = raw.ivaMonto ?? (valorBase - finalMontoNeto);
+      finalAplicaFactura = true;
+      finalDeducibleIva = false;
     } else if (esGastoProyectoConFactura) {
       // Gasto de proyecto con factura: Crédito fiscal IVA deducible
-      itemData.montoTotal = valorBase;
-      itemData.montoNeto = itemData.montoNeto ?? Math.round(valorBase / 1.19);
-      itemData.ivaMonto = itemData.ivaMonto ?? (valorBase - itemData.montoNeto);
-      itemData.deducibleIva = true;
+      finalMontoTotal = valorBase;
+      finalMontoNeto = raw.montoNeto ?? Math.round(valorBase / 1.19);
+      finalIvaMonto = raw.ivaMonto ?? (valorBase - finalMontoNeto);
+      finalAplicaFactura = true;
+      finalDeducibleIva = true;
     } else {
-      // Saldo inicial, aportes, boletas, ingresos no facturados o gastos generales sin factura de proyecto (No deducibles de IVA)
-      itemData.montoTotal = valorBase;
-      itemData.montoNeto = valorBase;
-      itemData.ivaMonto = 0;
-      itemData.aplicaFactura = false;
-      itemData.deducibleIva = false;
+      // Gasto general, aportes, boletas, etc.
+      finalMontoTotal = valorBase;
+      finalMontoNeto = valorBase;
+      finalIvaMonto = 0;
+      finalAplicaFactura = raw.tipoComprobante === "factura";
+      finalDeducibleIva = false;
       if (esSaldoInicial) {
-        itemData.tipoComprobante = "sin_comprobante";
-        itemData.numeroFactura = undefined;
+        finalTipoComprobante = "sin_comprobante";
+        finalNumeroFactura = undefined;
       }
     }
 
-    // Asegurar que monto siempre sea el total
-    itemData.monto = itemData.montoTotal ?? valorBase;
+    const itemData: Record<string, unknown> = {
+      tipo: raw.tipo,
+      categoria,
+      concepto: raw.concepto.trim(),
+      monto: finalMontoTotal,
+      montoTotal: finalMontoTotal,
+      montoNeto: finalMontoNeto,
+      ivaMonto: finalIvaMonto,
+      aplicaFactura: finalAplicaFactura,
+      deducibleIva: finalDeducibleIva,
+      tipoComprobante: finalTipoComprobante,
+      fechaVencimiento: raw.fechaVencimiento,
+      estado,
+      esRecurrente: raw.esRecurrente ?? false,
+      recordatorioDiasAntes: raw.recordatorioDiasAntes ?? 5,
+    };
 
-    const docRef = await addDoc(collection(db, "flujo_caja"), {
-      ...itemData,
-      createdAt: new Date().toISOString()
-    });
+    if (finalNumeroFactura) itemData.numeroFactura = finalNumeroFactura;
+    if (raw.fechaFactura?.trim()) itemData.fechaFactura = raw.fechaFactura.trim();
+    if (raw.fechaPago?.trim()) itemData.fechaPago = raw.fechaPago.trim();
+    if (raw.referenciaId?.trim()) itemData.referenciaId = raw.referenciaId.trim();
+    if (raw.referenciaNombre?.trim()) itemData.referenciaNombre = raw.referenciaNombre.trim();
+    if (raw.rutContraparte?.trim()) itemData.rutContraparte = raw.rutContraparte.trim();
+    if (raw.razonSocialContraparte?.trim()) itemData.razonSocialContraparte = raw.razonSocialContraparte.trim();
+    if (raw.proyectoId && raw.proyectoId !== "ninguno") itemData.proyectoId = raw.proyectoId;
+    if (raw.proyectoNombre?.trim()) itemData.proyectoNombre = raw.proyectoNombre.trim();
+    if (raw.clienteId?.trim()) itemData.clienteId = raw.clienteId.trim();
+    if (raw.clienteNombre?.trim()) itemData.clienteNombre = raw.clienteNombre.trim();
+    if (raw.clienteRut?.trim()) itemData.clienteRut = raw.clienteRut.trim();
+    if (raw.hitoPagoId?.trim()) itemData.hitoPagoId = raw.hitoPagoId.trim();
+    if (raw.frecuencia) itemData.frecuencia = raw.frecuencia;
+    if (raw.notas?.trim()) itemData.notas = raw.notas.trim();
+
+    // Sanitización estricta: asegurar que NINGÚN campo sea undefined ni null antes de Firestore
+    const cleanData: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(itemData)) {
+      if (v !== undefined && v !== null) {
+        cleanData[k] = v;
+      }
+    }
+
+    cleanData.createdAt = new Date().toISOString();
+
+    const docRef = await addDoc(collection(db, "flujo_caja"), cleanData);
     
     return NextResponse.json({ id: docRef.id, message: "Evento financiero registrado con éxito" });
   } catch (error: unknown) {

@@ -221,8 +221,13 @@ export default function PropuestaPublicaPage() {
               <tbody className="divide-y divide-white/5 font-medium">
                 {(presupuesto.items || []).map((item, idx) => (
                   <tr key={idx} className="hover:bg-white/[0.02]">
-                    <td className="py-4 px-6 text-white font-semibold">
-                      {item.descripcion}
+                    <td className="py-4 px-6">
+                      <p className="text-white font-semibold text-sm leading-snug">{item.descripcion}</p>
+                      {item.detalle && item.detalle.trim() && (
+                        <p className="text-xs text-slate-400 font-normal leading-relaxed whitespace-pre-wrap mt-1.5 pl-2.5 border-l-2 border-indigo-500/40">
+                          {item.detalle}
+                        </p>
+                      )}
                     </td>
                     <td className="py-4 px-4 text-center text-slate-300 font-mono">
                       {item.cantidad}

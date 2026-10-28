@@ -172,6 +172,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
     if (s) {
       addItem({
         descripcion: s.descripcion,
+        detalle: "",
         precio: s.precio_base || 0,
         cantidad: 1,
         total: s.precio_base || 0
@@ -608,7 +609,7 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                       <thead>
                         <tr className="border-b border-white/10 bg-muted/20 text-muted-foreground font-black uppercase text-[10px] tracking-wider">
                           <th className="py-2.5 pl-4 text-center w-8">#</th>
-                          <th className="py-2.5 px-3 text-left">Descripción del Servicio</th>
+                          <th className="py-2.5 px-3 text-left">Servicio y Descripción Detallada</th>
                           <th className="py-2.5 px-2 text-center w-20">Cant.</th>
                           <th className="py-2.5 px-2 text-right w-32">Precio Unit. ({moneda})</th>
                           <th className="py-2.5 px-3 text-right w-32">Subtotal</th>
@@ -622,13 +623,19 @@ export const PresupuestoFormView: React.FC<PresupuestoFormViewProps> = ({
                               {index + 1}
                             </td>
 
-                            <td className="py-2 px-3">
-                              <Textarea
-                                rows={2}
-                                placeholder="Describe el servicio entregable..."
+                            <td className="py-2 px-3 space-y-1.5">
+                              <Input
+                                placeholder="Nombre o título del servicio (ej: Sitio Web Corporativo)..."
                                 value={item.descripcion}
                                 onChange={(e) => updateItem(index, "descripcion", e.target.value)}
-                                className="min-h-[46px] rounded-lg bg-muted/20 border border-white/10 text-xs font-semibold leading-relaxed resize-none p-2 w-full"
+                                className="h-8.5 rounded-lg bg-muted/30 border border-white/10 text-xs font-bold leading-snug w-full placeholder:text-muted-foreground/60"
+                              />
+                              <Textarea
+                                rows={2}
+                                placeholder="Descripción detallada: alcance técnico, entregables, especificaciones, tecnologías..."
+                                value={item.detalle || ""}
+                                onChange={(e) => updateItem(index, "detalle", e.target.value)}
+                                className="min-h-[46px] rounded-lg bg-muted/15 border border-white/10 text-[11px] font-normal leading-relaxed resize-y p-2 w-full text-slate-300 placeholder:text-muted-foreground/50 focus:border-indigo-500/50"
                               />
                             </td>
 

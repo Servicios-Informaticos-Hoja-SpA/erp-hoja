@@ -266,7 +266,9 @@ export interface ConfiguracionGlobal {
 
 // --- PRESUPUESTOS ---
 export interface PresupuestoItem {
-  descripcion: string;
+  id?: string;
+  descripcion: string; // Título o concepto del servicio
+  detalle?: string;    // Descripción detallada / alcance / especificaciones técnicas
   precio: number;
   cantidad: number;
   total: number;
@@ -601,7 +603,8 @@ export type EventoFinancieroCategoria =
   | "cobro_proyecto" 
   | "recurrente_cliente" 
   | "renovacion_infraestructura" 
-  | "gasto_operativo";
+  | "gasto_operativo"
+  | "saldo_inicial";
 
 export interface EventoFinanciero {
   id?: string;

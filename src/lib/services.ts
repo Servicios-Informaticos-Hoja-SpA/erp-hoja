@@ -109,8 +109,21 @@ const fetcher = async (url: string, options?: FetcherOptions) => {
 
       if (!res.ok) {
         if (isJson) {
-          const error = await res.json();
-          throw new Error(error.error || `Error ${res.status}: ${res.statusText}`);
+          const errorData = await res.json();
+          let msg = errorData.error || `Error ${res.status}: ${res.statusText}`;
+          if (errorData.details && typeof errorData.details === "object") {
+            const fieldIssues = Object.entries(errorData.details)
+              .filter(([k]) => k !== "_errors")
+              .map(([k, v]: [string, any]) => {
+                const issues = Array.isArray(v?._errors) ? v._errors.join(", ") : "";
+                return issues ? `${k}: ${issues}` : `${k} inválido`;
+              })
+              .join("; ");
+            if (fieldIssues) {
+              msg += ` (${fieldIssues})`;
+            }
+          }
+          throw new Error(msg);
         }
         throw new Error(`Error ${res.status}: ${res.statusText}`);
       }

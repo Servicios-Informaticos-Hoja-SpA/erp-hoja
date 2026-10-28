@@ -17,6 +17,7 @@ import { z } from "zod";
 const presupuestoItemSchema = z.object({
   id: z.string().optional(),
   descripcion: z.string().default(""),
+  detalle: z.string().optional().default(""),
   precio: z.coerce.number().default(0),
   cantidad: z.coerce.number().default(1),
   total: z.coerce.number().default(0),

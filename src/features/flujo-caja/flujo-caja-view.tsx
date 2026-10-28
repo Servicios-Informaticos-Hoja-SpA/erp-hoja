@@ -167,6 +167,48 @@ export const FlujoCajaView: React.FC = () => {
   const [nuevasNotas, setNuevasNotas] = useState("");
   const [isSavingMovement, setIsSavingMovement] = useState(false);
 
+  // Apertura limpia de modal para ingresos
+  const openCreateIngreso = () => {
+    setNuevoTipo("ingreso");
+    setNuevaCategoria("cobro_proyecto");
+    setNuevoTipoComprobante("factura");
+    setAplicaFactura(true);
+    setNuevoEstado("cobrado");
+    setNuevoConcepto("");
+    setNuevoMonto(0);
+    setMontoNeto(0);
+    setIvaMonto(0);
+    setMontoTotal(0);
+    setNuevoNumeroFactura("");
+    setNuevoProyectoId("ninguno");
+    setNuevoRutContraparte("");
+    setNuevaRazonSocial("");
+    setNuevaFecha(new Date().toISOString().split("T")[0]);
+    setNuevasNotas("");
+    setIsCreateOpen(true);
+  };
+
+  // Apertura limpia de modal para egresos / gastos
+  const openCreateEgreso = (deducibleFactura: boolean = false) => {
+    setNuevoTipo("egreso");
+    setNuevaCategoria("gasto_operativo");
+    setNuevoTipoComprobante(deducibleFactura ? "factura" : "sin_comprobante");
+    setAplicaFactura(deducibleFactura);
+    setNuevoEstado("pagado");
+    setNuevoConcepto("");
+    setNuevoMonto(0);
+    setMontoNeto(0);
+    setIvaMonto(0);
+    setMontoTotal(0);
+    setNuevoNumeroFactura("");
+    setNuevoProyectoId("ninguno");
+    setNuevoRutContraparte("");
+    setNuevaRazonSocial("");
+    setNuevaFecha(new Date().toISOString().split("T")[0]);
+    setNuevasNotas("");
+    setIsCreateOpen(true);
+  };
+
   // Modal para Asignar Factura rápida a un hito o movimiento
   const [invNumero, setInvNumero] = useState("");
   const [invFecha, setInvFecha] = useState(new Date().toISOString().split("T")[0]);
@@ -429,9 +471,13 @@ export const FlujoCajaView: React.FC = () => {
         }
       }
 
-      // 5. Filtro por Estado
+      // 5. Filtro por Estado (Cobrado / Pagado unificado)
       if (filterEstado !== "todos") {
-        if (item.estado !== filterEstado) return false;
+        if (filterEstado === "cobrado") {
+          if (item.estado !== "cobrado" && item.estado !== "pagado") return false;
+        } else if (item.estado !== filterEstado) {
+          return false;
+        }
       }
 
       // 6. Buscador predictivo por texto
@@ -774,6 +820,7 @@ export const FlujoCajaView: React.FC = () => {
       setIsSavingMovement(true);
       const cLower = nuevoConcepto.trim().toLowerCase();
       const esSaldoInicial = 
+        nuevaCategoria === "saldo_inicial" ||
         cLower.includes("saldo inicial") ||
         cLower.includes("caja inicial") ||
         cLower.includes("aporte de capital") ||
@@ -794,9 +841,19 @@ export const FlujoCajaView: React.FC = () => {
         Boolean(nuevoProyectoId && nuevoProyectoId !== "ninguno") &&
         Boolean(nuevoNumeroFactura.trim() || nuevoTipoComprobante === "factura");
 
+      const estadoFinal: "pendiente" | "cobrado" | "pagado" =
+        nuevoEstado === "pendiente"
+          ? "pendiente"
+          : nuevoTipo === "egreso"
+          ? "pagado"
+          : "cobrado";
+
+      const categoriaFinal: EventoFinancieroCategoria =
+        nuevaCategoria || (nuevoTipo === "egreso" ? "gasto_operativo" : "cobro_proyecto");
+
       const nuevo: Partial<EventoFinanciero> = {
         tipo: nuevoTipo,
-        categoria: nuevaCategoria,
+        categoria: categoriaFinal,
         concepto: nuevoConcepto.trim(),
         monto: valorFinal,
         montoNeto: finalNeto,
@@ -814,8 +871,8 @@ export const FlujoCajaView: React.FC = () => {
         clienteId: proy?.clienteId || undefined,
         clienteNombre: proy?.clienteNombre || undefined,
         fechaVencimiento: nuevaFecha,
-        fechaPago: nuevoEstado === "cobrado" || nuevoEstado === "pagado" ? nuevaFecha : undefined,
-        estado: nuevoEstado,
+        fechaPago: estadoFinal !== "pendiente" ? nuevaFecha : undefined,
+        estado: estadoFinal,
         notas: nuevasNotas.trim() || undefined,
       };
 
@@ -825,7 +882,7 @@ export const FlujoCajaView: React.FC = () => {
           ? "Ingreso registrado y catalogado para facturación"
           : esGastoProyectoConFactura
             ? "Gasto de proyecto con factura registrado (Crédito Fiscal IVA activado)"
-            : "Gasto general registrado en flujo de caja (No deducible de IVA)"
+            : "Gasto registrado en flujo de caja (Egreso operacional)"
       );
 
       setIsCreateOpen(false);
@@ -838,10 +895,12 @@ export const FlujoCajaView: React.FC = () => {
       setNuevoRutContraparte("");
       setNuevaRazonSocial("");
       setNuevasNotas("");
+      setNuevoProyectoId("ninguno");
       loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al registrar el movimiento financiero");
+    } catch (err: unknown) {
+      console.error("Error al registrar movimiento:", err);
+      const msg = err instanceof Error ? err.message : "Error al registrar el movimiento financiero";
+      toast.error(msg);
     } finally {
       setIsSavingMovement(false);
     }
@@ -961,6 +1020,11 @@ export const FlujoCajaView: React.FC = () => {
       : "pendiente";
 
     try {
+      if (evento.id?.startsWith("sub-")) {
+        toast.info("Este servicio recurrente se administra desde el módulo de Suscripciones");
+        return;
+      }
+
       if (evento.id && !evento.id.startsWith("hito-")) {
         await updateEventoFinanciero(evento.id, { 
           estado: nextEstado,
@@ -980,9 +1044,10 @@ export const FlujoCajaView: React.FC = () => {
 
       toast.success(`Movimiento marcado como ${nextEstado}`);
       loadData();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Error al actualizar estado");
+      const msg = err instanceof Error ? err.message : "Error al actualizar estado";
+      toast.error(msg);
     }
   };
 
@@ -991,6 +1056,12 @@ export const FlujoCajaView: React.FC = () => {
     if (!deleteItem) return;
     try {
       setIsDeleting(true);
+      if (deleteItem.id?.startsWith("sub-")) {
+        toast.info("Los servicios recurrentes se gestionan y retiran desde el módulo de Suscripciones");
+        setDeleteItem(null);
+        return;
+      }
+
       if (deleteItem.id && !deleteItem.id.startsWith("hito-")) {
         await deleteEventoFinanciero(deleteItem.id);
         toast.success("Movimiento eliminado del flujo de caja");
@@ -999,9 +1070,10 @@ export const FlujoCajaView: React.FC = () => {
       }
       setDeleteItem(null);
       loadData();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Error al eliminar movimiento");
+      const msg = err instanceof Error ? err.message : "Error al eliminar movimiento";
+      toast.error(msg);
     } finally {
       setIsDeleting(false);
     }
@@ -1045,11 +1117,8 @@ export const FlujoCajaView: React.FC = () => {
           </Button>
 
           <Button
-            onClick={() => {
-              setNuevoTipo("ingreso");
-              setIsCreateOpen(true);
-            }}
-            className="h-9 px-4 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-indigo-600/30"
+            onClick={openCreateIngreso}
+            className="h-9 px-4 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-indigo-600/30 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             Registrar Movimiento
@@ -1846,13 +1915,13 @@ export const FlujoCajaView: React.FC = () => {
                                 <Receipt className="w-3.5 h-3.5" />
                               </Button>
 
-                              {/* Eliminar (solo si es registro manual de caja) */}
-                              {!item.isProjectHito && (
+                              {/* Eliminar (solo si es registro manual de caja, no hitos ni suscripciones virtuales) */}
+                              {!item.isProjectHito && !item.id?.startsWith("sub-") && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setDeleteItem(item)}
-                                  className="h-7 w-7 p-0 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded cursor-pointer"
                                   title="Eliminar movimiento"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1952,11 +2021,8 @@ export const FlujoCajaView: React.FC = () => {
                 </div>
 
                 <Button
-                  onClick={() => {
-                    setNuevoTipo("egreso");
-                    setIsCreateOpen(true);
-                  }}
-                  className="h-8.5 px-3.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5"
+                  onClick={() => openCreateEgreso(true)}
+                  className="h-8.5 px-3.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   + Registrar Gasto Proyecto con Factura
@@ -2567,8 +2633,15 @@ export const FlujoCajaView: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setNuevoTipo("ingreso");
+                  setNuevaCategoria("cobro_proyecto");
                   setNuevoTipoComprobante("factura");
                   setAplicaFactura(true);
+                  if (nuevoEstado === "pagado") setNuevoEstado("cobrado");
+                  if (montoTotal > 0) {
+                    const n = Math.round(montoTotal / (1 + IVA_TASA_CHILE));
+                    setMontoNeto(n);
+                    setIvaMonto(montoTotal - n);
+                  }
                 }}
                 className={`py-1.5 text-xs font-black rounded transition-all cursor-pointer ${
                   nuevoTipo === "ingreso"
@@ -2582,8 +2655,15 @@ export const FlujoCajaView: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setNuevoTipo("egreso");
+                  setNuevaCategoria("gasto_operativo");
                   setNuevoTipoComprobante("factura");
-                  setAplicaFactura(false);
+                  setAplicaFactura(true);
+                  if (nuevoEstado === "cobrado") setNuevoEstado("pagado");
+                  if (montoTotal > 0) {
+                    const n = Math.round(montoTotal / (1 + IVA_TASA_CHILE));
+                    setMontoNeto(n);
+                    setIvaMonto(montoTotal - n);
+                  }
                 }}
                 className={`py-1.5 text-xs font-black rounded transition-all cursor-pointer ${
                   nuevoTipo === "egreso"
@@ -2595,13 +2675,37 @@ export const FlujoCajaView: React.FC = () => {
               </button>
             </div>
 
+            {/* Categoría Financiera */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-300">Categoría Financiera *</Label>
+              <Select value={nuevaCategoria} onValueChange={(val: any) => setNuevaCategoria(val)}>
+                <SelectTrigger className="bg-slate-900 border-white/15 text-white text-xs h-9 rounded-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-white/15 text-white">
+                  {nuevoTipo === "egreso" ? (
+                    <>
+                      <SelectItem value="gasto_operativo" className="text-xs">Gasto Operativo General (Insumos, compras, varios)</SelectItem>
+                      <SelectItem value="renovacion_infraestructura" className="text-xs">Infraestructura, Servidores & Software (Hosting, SaaS, dominios)</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="cobro_proyecto" className="text-xs">Cobro de Proyecto / Hito de Desarrollo</SelectItem>
+                      <SelectItem value="recurrente_cliente" className="text-xs">Cobro Recurrente (Mantención mensual, soporte)</SelectItem>
+                      <SelectItem value="saldo_inicial" className="text-xs">Saldo Inicial de Caja / Aporte de Capital</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Concepto */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-300">Concepto / Glosa *</Label>
               <Input
                 value={nuevoConcepto}
                 onChange={(e) => setNuevoConcepto(e.target.value)}
-                placeholder="Ej: Desarrollo módulo e-commerce / Compra licencias servidor..."
+                placeholder={nuevoTipo === "egreso" ? "Ej: Servidores cloud, licencias IDE, insumos oficina..." : "Ej: Desarrollo web hito 1, mantención mensual..."}
                 className="bg-slate-900 border-white/15 text-white text-xs h-9 rounded-md"
               />
             </div>
@@ -2744,8 +2848,17 @@ export const FlujoCajaView: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/15 text-white">
-                    <SelectItem value="cobrado" className="text-xs text-emerald-400">Cobrado / Pagado</SelectItem>
-                    <SelectItem value="pendiente" className="text-xs text-amber-300">Pendiente de Pago</SelectItem>
+                    {nuevoTipo === "egreso" ? (
+                      <>
+                        <SelectItem value="pagado" className="text-xs text-emerald-400">Pagado al Proveedor</SelectItem>
+                        <SelectItem value="pendiente" className="text-xs text-amber-300">Pendiente de Pago</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="cobrado" className="text-xs text-emerald-400">Cobrado / Recibido</SelectItem>
+                        <SelectItem value="pendiente" className="text-xs text-amber-300">Pendiente de Cobro</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
