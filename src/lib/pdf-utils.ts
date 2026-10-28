@@ -1,12 +1,13 @@
 /**
  * Generador robusto de PDF para presupuestos y documentos institucionales
+ * Compatible con Tailwind CSS v4, html2canvas y jsPDF
  */
 export const generatePDF = async (
   elementId: string, 
   filename: string, 
   action: 'save' | 'preview' = 'save'
 ) => {
-  // Esperar activamente si el elemento aún no está completamente montado en el DOM (hasta 2.5 segundos)
+  // 1. Esperar activamente si el elemento aún no está completamente montado en el DOM (hasta 2.5 segundos)
   let element = document.getElementById(elementId);
   if (!element) {
     const startTime = Date.now();
@@ -22,60 +23,33 @@ export const generatePDF = async (
     throw new Error(`No se encontró el elemento #${elementId} para generar el PDF`);
   }
 
-  // Carga dinámica de librerías pesadas sólo cuando el usuario realmente genera o previsualiza el PDF
+  // 2. Carga dinámica de librerías pesadas sólo cuando el usuario realmente genera o previsualiza el PDF
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
     import("html2canvas"),
   ]);
 
   try {
-    // Función de sanitización segura contra formatos de color modernos (oklch, lab, etc.)
-    const sanitizeClonedElement = (clonedEl: HTMLElement, clonedDoc: Document) => {
+    // 3. Función de sanitización de hojas de estilo contra funciones modernas de color que html2canvas no soporta
+    // Esto previene el error: Attempting to parse an unsupported color function "lab" / "oklch"
+    const sanitizeStylesheets = (doc: Document) => {
       try {
-        const win = clonedDoc.defaultView || window;
-        const allElements = clonedEl.getElementsByTagName("*");
-
-        for (let i = 0; i < allElements.length; i++) {
-          const el = allElements[i] as HTMLElement;
-          try {
-            const styles = win.getComputedStyle ? win.getComputedStyle(el) : null;
-            if (!styles) continue;
-
-            const isUnsupportedColor = (val?: string | null) => {
-              if (!val) return false;
-              return val.includes("oklch(") || val.includes("oklab(") || val.includes("lab(") || val.includes("hwb(");
-            };
-
-            if (isUnsupportedColor(styles.color)) {
-              el.style.color = "#0f172a";
-            }
-            if (isUnsupportedColor(styles.backgroundColor)) {
-              el.style.backgroundColor = "transparent";
-            }
-            if (isUnsupportedColor(styles.borderColor)) {
-              el.style.borderColor = "#e2e8f0";
-            }
-
-            el.style.boxShadow = "none";
-            el.style.textShadow = "none";
-            el.style.filter = "none";
-            el.style.backdropFilter = "none";
-          } catch {
-            // No interrumpir si falla la lectura de un elemento individual
+        const styleNodes = doc.querySelectorAll("style");
+        styleNodes.forEach((s) => {
+          if (s.textContent) {
+            s.textContent = s.textContent
+              .replace(/lab\([^)]+\)/gi, "rgb(15, 23, 42)")
+              .replace(/oklch\([^)]+\)/gi, "rgb(15, 23, 42)")
+              .replace(/oklab\([^)]+\)/gi, "rgb(15, 23, 42)")
+              .replace(/lch\([^)]+\)/gi, "rgb(15, 23, 42)");
           }
-        }
-
-        // Forzar visibilidad y fondo blanco en el contenedor
-        clonedEl.style.backgroundColor = "#ffffff";
-        clonedEl.style.color = "#0f172a";
-        clonedEl.style.opacity = "1";
-        clonedEl.style.visibility = "visible";
+        });
       } catch (err) {
-        console.warn("Advertencia al sanitizar estilos para PDF:", err);
+        console.warn("Advertencia al sanitizar estilos:", err);
       }
     };
 
-    // Si existen páginas individuales declaradas con [data-pdf-page="true"], procesar cada una de forma independiente
+    // 4. Si existen páginas individuales declaradas con [data-pdf-page="true"], procesar cada una de forma independiente
     let pageNodes = Array.from(element.querySelectorAll<HTMLElement>('[data-pdf-page="true"]'));
     if (pageNodes.length === 0 && element.hasAttribute('data-pdf-page')) {
       pageNodes = [element];
@@ -95,7 +69,7 @@ export const generatePDF = async (
 
         const canvas = await html2canvas(pageEl, {
           scale: 2,
-          useCORS: true,
+          useCORS: false, // Previene bloqueos CORS con Firebase Storage u orígenes externos
           allowTaint: true,
           logging: false,
           backgroundColor: "#ffffff",
@@ -103,15 +77,24 @@ export const generatePDF = async (
           scrollX: 0,
           scrollY: 0,
           onclone: (clonedDoc) => {
-            // Asegurar que la página clonada tenga visibilidad completa y fondo blanco
-            const clonedTarget = (clonedDoc.querySelectorAll<HTMLElement>('[data-pdf-page="true"]')[pIdx]) 
-              || clonedDoc.getElementById(elementId) 
-              || clonedDoc.body;
+            // Sanitizar estilos globales contra lab() y oklch()
+            sanitizeStylesheets(clonedDoc);
 
-            if (clonedTarget) {
-              sanitizeClonedElement(clonedTarget as HTMLElement, clonedDoc);
-              (clonedTarget as HTMLElement).style.opacity = "1";
-              (clonedTarget as HTMLElement).style.visibility = "visible";
+            // Asegurar que la página clonada tenga visibilidad completa y fondo blanco
+            const allClonedPages = clonedDoc.querySelectorAll<HTMLElement>('[data-pdf-page="true"]');
+            if (allClonedPages[pIdx]) {
+              allClonedPages[pIdx].style.opacity = "1";
+              allClonedPages[pIdx].style.visibility = "visible";
+              allClonedPages[pIdx].style.backgroundColor = "#ffffff";
+            }
+
+            // Asegurar que el contenedor padre tenga visibilidad en el DOM clonado
+            const printContainer = clonedDoc.getElementById(elementId);
+            if (printContainer) {
+              printContainer.style.opacity = "1";
+              printContainer.style.visibility = "visible";
+              printContainer.style.position = "static";
+              printContainer.style.zIndex = "auto";
             }
           },
         });
@@ -135,7 +118,7 @@ export const generatePDF = async (
     // Fallback: renderizado de contenedor continuo si no hay páginas discretas
     const canvas = await html2canvas(element, {
       scale: 2,
-      useCORS: true,
+      useCORS: false,
       allowTaint: true,
       logging: false,
       backgroundColor: "#ffffff",
@@ -143,9 +126,11 @@ export const generatePDF = async (
       scrollX: 0,
       scrollY: 0,
       onclone: (clonedDoc) => {
+        sanitizeStylesheets(clonedDoc);
         const clonedEl = clonedDoc.getElementById(elementId) || clonedDoc.body;
         if (clonedEl) {
-          sanitizeClonedElement(clonedEl as HTMLElement, clonedDoc);
+          clonedEl.style.opacity = "1";
+          clonedEl.style.visibility = "visible";
         }
       }
     });

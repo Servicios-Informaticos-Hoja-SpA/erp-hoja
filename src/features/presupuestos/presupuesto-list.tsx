@@ -61,6 +61,7 @@ export const PresupuestoList = () => {
   const [isNew, setIsNew] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewingPresupuesto, setPreviewingPresupuesto] = useState<Presupuesto | null>(null);
   const [downloadingPresupuesto, setDownloadingPresupuesto] = useState<Presupuesto | null>(null);
   const [globalConfig, setGlobalConfig] = useState<ConfiguracionGlobal | null>(null);
 
@@ -171,7 +172,7 @@ export const PresupuestoList = () => {
   };
 
   const handlePreview = async (p: Presupuesto) => {
-    setDownloadingPresupuesto(p);
+    setPreviewingPresupuesto(p);
     setIsPreviewOpen(true);
     if (!globalConfig) {
       try {
@@ -425,51 +426,51 @@ export const PresupuestoList = () => {
           <DialogHeader className="p-4 sm:px-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-slate-900/60">
             <div>
               <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
-                <span>Cotización N° {downloadingPresupuesto?.numero}</span>
-                {downloadingPresupuesto?.version && downloadingPresupuesto.version > 1 && (
+                <span>Cotización N° {previewingPresupuesto?.numero}</span>
+                {previewingPresupuesto?.version && previewingPresupuesto.version > 1 && (
                   <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-bold">
-                    v{downloadingPresupuesto.version}
+                    v{previewingPresupuesto.version}
                   </span>
                 )}
               </DialogTitle>
               <p className="text-xs text-muted-foreground font-medium">
-                Cliente: {downloadingPresupuesto?.cliente_nombre} &bull; Total: ${downloadingPresupuesto?.totales?.total?.toLocaleString("es-CL")} CLP
+                Cliente: {previewingPresupuesto?.cliente_nombre} &bull; Total: ${previewingPresupuesto?.totales?.total?.toLocaleString("es-CL")} CLP
               </p>
             </div>
 
             {/* Acciones directas en el preview */}
             <div className="flex items-center gap-2 flex-wrap">
-              {downloadingPresupuesto && (
+              {previewingPresupuesto && (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleDownload(downloadingPresupuesto, "save")}
+                    onClick={() => handleDownload(previewingPresupuesto, "save")}
                     className="h-9 px-3 rounded-xl text-xs font-bold gap-1.5 border-border"
                   >
                     <Download className="h-3.5 w-3.5" /> Descargar PDF
                   </Button>
 
                   {(() => {
-                    const cl = clientes.find(c => c.id === downloadingPresupuesto.cliente_id || c.nombre === downloadingPresupuesto.cliente_nombre);
+                    const cl = clientes.find(c => c.id === previewingPresupuesto.cliente_id || c.nombre === previewingPresupuesto.cliente_nombre);
                     const tel = cl?.telefono;
                     if (!tel) return null;
                     return (
                       <WhatsAppButton
                         telefono={tel}
-                        clienteNombre={downloadingPresupuesto.cliente_nombre}
+                        clienteNombre={previewingPresupuesto.cliente_nombre}
                         size="sm"
                         className="h-9 px-3 text-xs rounded-xl shadow-none"
                       />
                     );
                   })()}
 
-                  {downloadingPresupuesto.estado === "aprobado" && !downloadingPresupuesto.proyecto_id && (
+                  {previewingPresupuesto.estado === "aprobado" && !previewingPresupuesto.proyecto_id && (
                     <Button
                       size="sm"
                       onClick={() => {
                         setIsPreviewOpen(false);
-                        handleCreateProjectFromBudget(downloadingPresupuesto);
+                        handleCreateProjectFromBudget(previewingPresupuesto);
                       }}
                       className="h-9 px-3 rounded-xl text-xs font-black bg-emerald-500 text-white gap-1.5 shadow-md shadow-emerald-500/20"
                     >
@@ -482,7 +483,7 @@ export const PresupuestoList = () => {
                     variant="ghost"
                     onClick={() => {
                       setIsPreviewOpen(false);
-                      setEditingId(downloadingPresupuesto.id || null);
+                      setEditingId(previewingPresupuesto.id || null);
                     }}
                     className="h-9 px-3 rounded-xl text-xs font-bold gap-1.5 hover:bg-white/10"
                   >
@@ -494,12 +495,12 @@ export const PresupuestoList = () => {
           </DialogHeader>
 
           <div className="flex-1 overflow-auto p-4 sm:p-8 bg-slate-950/80">
-            {downloadingPresupuesto && globalConfig ? (
+            {previewingPresupuesto ? (
               <div className="w-full max-w-[860px] mx-auto pb-10">
                 <PresupuestoPreview
                   id="presupuesto-document-modal"
-                  data={downloadingPresupuesto}
-                  config={globalConfig}
+                  data={previewingPresupuesto}
+                  config={globalConfig || defaultGlobalConfig}
                 />
               </div>
             ) : (
