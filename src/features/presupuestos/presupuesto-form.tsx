@@ -418,8 +418,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
               position: "fixed", 
               left: 0, 
               top: 0, 
-              zIndex: -100, 
-              opacity: 0, 
+              zIndex: -9999, 
               pointerEvents: "none", 
               overflow: "hidden" 
             }}

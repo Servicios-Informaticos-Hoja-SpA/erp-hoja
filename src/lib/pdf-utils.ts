@@ -1,7 +1,56 @@
 /**
  * Generador robusto de PDF para presupuestos y documentos institucionales
- * Compatible con Tailwind CSS v4, html2canvas y jsPDF
+ * Compatible con Tailwind CSS v4, Firefox/Chrome, html2canvas y jsPDF
  */
+
+// Helper para convertir cualquier función moderna de color (lab, oklch, oklab, lch) a rgb estándar
+// usando el motor nativo del navegador (canvas 2D).
+function convertColorToRgb(val: string): string {
+  if (!val || typeof val !== "string") return val;
+  if (
+    !val.includes("lab(") && 
+    !val.includes("oklch(") && 
+    !val.includes("oklab(") && 
+    !val.includes("lch(")
+  ) {
+    return val;
+  }
+
+  return val.replace(/(?:oklch|oklab|lab|lch)\([^)]+\)/gi, (match) => {
+    try {
+      if (typeof document === "undefined") return "rgb(15, 23, 42)";
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "rgb(15, 23, 42)";
+      ctx.fillStyle = match;
+      return ctx.fillStyle || "rgb(15, 23, 42)";
+    } catch {
+      return "rgb(15, 23, 42)";
+    }
+  });
+}
+
+// Proxy sobre CSSStyleDeclaration para interceptar lecturas de propiedades y convertirlas a RGB
+function createStyleProxy(styleDecl: CSSStyleDeclaration): CSSStyleDeclaration {
+  return new Proxy(styleDecl, {
+    get(target, prop, receiver) {
+      const orig = Reflect.get(target, prop, receiver);
+      if (typeof orig === "string") {
+        return convertColorToRgb(orig);
+      }
+      if (typeof orig === "function" && prop === "getPropertyValue") {
+        return (propertyName: string) => {
+          const val = target.getPropertyValue(propertyName);
+          return convertColorToRgb(val);
+        };
+      }
+      return orig;
+    }
+  });
+}
+
 export const generatePDF = async (
   elementId: string, 
   filename: string, 
@@ -23,29 +72,50 @@ export const generatePDF = async (
     throw new Error(`No se encontró el elemento #${elementId} para generar el PDF`);
   }
 
-  // 2. Carga dinámica de librerías pesadas sólo cuando el usuario realmente genera o previsualiza el PDF
-  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-    import("jspdf"),
-    import("html2canvas"),
-  ]);
+  // 2. Interceptar window.getComputedStyle durante la generación del PDF para neutralizar lab() y oklch()
+  const originalGetComputedStyle = window.getComputedStyle;
+  window.getComputedStyle = function (elt: Element, pseudoElt?: string | null) {
+    const realStyle = originalGetComputedStyle.call(window, elt, pseudoElt);
+    return createStyleProxy(realStyle);
+  };
 
   try {
-    // 3. Función de sanitización de hojas de estilo contra funciones modernas de color que html2canvas no soporta
-    // Esto previene el error: Attempting to parse an unsupported color function "lab" / "oklch"
-    const sanitizeStylesheets = (doc: Document) => {
+    // 3. Carga dinámica de librerías pesadas bajo demanda
+    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+      import("jspdf"),
+      import("html2canvas"),
+    ]);
+
+    // Función de limpieza de hojas de estilo y elementos del documento clonado
+    const sanitizeClonedDoc = (clonedDoc: Document) => {
       try {
-        const styleNodes = doc.querySelectorAll("style");
+        // Interceptar getComputedStyle dentro del iframe clonado
+        if (clonedDoc.defaultView) {
+          const origIframeStyle = clonedDoc.defaultView.getComputedStyle;
+          clonedDoc.defaultView.getComputedStyle = function (elt: Element, pseudoElt?: string | null) {
+            const realStyle = origIframeStyle.call(clonedDoc.defaultView, elt, pseudoElt);
+            return createStyleProxy(realStyle);
+          };
+        }
+
+        // Sanitizar hojas de estilo <style>
+        const styleNodes = clonedDoc.querySelectorAll("style");
         styleNodes.forEach((s) => {
-          if (s.textContent) {
-            s.textContent = s.textContent
-              .replace(/lab\([^)]+\)/gi, "rgb(15, 23, 42)")
-              .replace(/oklch\([^)]+\)/gi, "rgb(15, 23, 42)")
-              .replace(/oklab\([^)]+\)/gi, "rgb(15, 23, 42)")
-              .replace(/lch\([^)]+\)/gi, "rgb(15, 23, 42)");
+          if (s.textContent && (s.textContent.includes("lab(") || s.textContent.includes("oklch("))) {
+            s.textContent = convertColorToRgb(s.textContent);
+          }
+        });
+
+        // Sanitizar atributos style inline
+        const allWithStyle = clonedDoc.querySelectorAll("[style]");
+        allWithStyle.forEach((el) => {
+          const s = el.getAttribute("style");
+          if (s && (s.includes("lab(") || s.includes("oklch("))) {
+            el.setAttribute("style", convertColorToRgb(s));
           }
         });
       } catch (err) {
-        console.warn("Advertencia al sanitizar estilos:", err);
+        console.warn("Advertencia al sanitizar estilos para PDF:", err);
       }
     };
 
@@ -69,7 +139,7 @@ export const generatePDF = async (
 
         const canvas = await html2canvas(pageEl, {
           scale: 2,
-          useCORS: false, // Previene bloqueos CORS con Firebase Storage u orígenes externos
+          useCORS: false,
           allowTaint: true,
           logging: false,
           backgroundColor: "#ffffff",
@@ -77,8 +147,7 @@ export const generatePDF = async (
           scrollX: 0,
           scrollY: 0,
           onclone: (clonedDoc) => {
-            // Sanitizar estilos globales contra lab() y oklch()
-            sanitizeStylesheets(clonedDoc);
+            sanitizeClonedDoc(clonedDoc);
 
             // Asegurar que la página clonada tenga visibilidad completa y fondo blanco
             const allClonedPages = clonedDoc.querySelectorAll<HTMLElement>('[data-pdf-page="true"]');
@@ -126,7 +195,7 @@ export const generatePDF = async (
       scrollX: 0,
       scrollY: 0,
       onclone: (clonedDoc) => {
-        sanitizeStylesheets(clonedDoc);
+        sanitizeClonedDoc(clonedDoc);
         const clonedEl = clonedDoc.getElementById(elementId) || clonedDoc.body;
         if (clonedEl) {
           clonedEl.style.opacity = "1";
@@ -171,5 +240,8 @@ export const generatePDF = async (
   } catch (error) {
     console.error("FATAL PDF ERROR:", error);
     throw error;
+  } finally {
+    // Restaurar window.getComputedStyle original sin importar el resultado
+    window.getComputedStyle = originalGetComputedStyle;
   }
 };
