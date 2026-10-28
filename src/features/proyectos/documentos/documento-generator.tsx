@@ -566,7 +566,18 @@ export const DocumentoGenerator: React.FC<DocumentoGeneratorProps> = ({
       </Dialog>
 
       {/* Hidden print template for PDF export */}
-      <div className="fixed left-[-9999px] top-0 pointer-events-none">
+      <div 
+        aria-hidden="true" 
+        style={{ 
+          position: "fixed", 
+          left: 0, 
+          top: 0, 
+          zIndex: -100, 
+          opacity: 0, 
+          pointerEvents: "none", 
+          overflow: "hidden" 
+        }}
+      >
         {selectedDoc && (
           <div id="documento-operativo-print" className="bg-white text-slate-900 p-12 w-[800px] font-sans space-y-6 text-xs">
             <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">

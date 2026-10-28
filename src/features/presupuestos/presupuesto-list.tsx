@@ -29,10 +29,7 @@ const PresupuestoForm = dynamic(
   }
 );
 
-const PresupuestoPreview = dynamic(
-  () => import("./presupuesto-preview.view").then((m) => m.PresupuestoPreview),
-  { ssr: false }
-);
+import { PresupuestoPreview } from "./presupuesto-preview.view";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { 
@@ -128,22 +125,44 @@ export const PresupuestoList = () => {
     }
   }, [queryId, presupuestos]);
 
+  const defaultGlobalConfig: ConfiguracionGlobal = {
+    banco: "Banco Falabella",
+    tipo_cuenta: "Cuenta Corriente",
+    numero_cuenta: "1-983-101480-2",
+    email_pago: "devhoja@gmail.com",
+    email_contacto: "contacto@hojaspa.cl",
+    web: "www.hojaspa.cl",
+    telefono: "+56 9 5416 9597",
+    rut: "78.364.078-3",
+    nombre_titular: "SERVICIOS INFORMATICOS HOJA SPA",
+  };
+
   const handleDownload = async (p: Presupuesto, action: 'save' | 'preview' = 'save') => {
     setIsGeneratingPDF(true);
     setDownloadingPresupuesto(p);
     try {
-      const config = await getConfig();
-      if (!config) throw new Error("No se pudo cargar la configuración global");
-      setGlobalConfig(config);
+      let config = globalConfig;
+      if (!config) {
+        try {
+          config = await getConfig();
+        } catch {
+          // Si falla la red, usar defaults institucionales
+        }
+      }
+      const effectiveConfig = config || defaultGlobalConfig;
+      if (!globalConfig) {
+        setGlobalConfig(effectiveConfig);
+      }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Breve espera para que React pinte el template oculto
+      await new Promise(resolve => setTimeout(resolve, 250));
       
       const clientSlug = (p.cliente_nombre || "CLIENTE").replace(/\s+/g, '_').toUpperCase();
       const filename = `COT_${p.numero}_${clientSlug}`;
       await generatePDF("presupuesto-document-print", filename, action);
       toast.success(action === 'preview' ? "Vista previa generada" : "Documento descargado");
     } catch (err) {
-      console.error(err);
+      console.error("Error al procesar el documento PDF:", err);
       toast.error("Error al procesar el documento");
     } finally {
       setIsGeneratingPDF(false);
@@ -155,8 +174,12 @@ export const PresupuestoList = () => {
     setDownloadingPresupuesto(p);
     setIsPreviewOpen(true);
     if (!globalConfig) {
-      const config = await getConfig();
-      setGlobalConfig(config);
+      try {
+        const config = await getConfig();
+        setGlobalConfig(config || defaultGlobalConfig);
+      } catch {
+        setGlobalConfig(defaultGlobalConfig);
+      }
     }
   };
 
@@ -374,12 +397,24 @@ export const PresupuestoList = () => {
       )}
 
       {/* Template oculto de generación de PDF para presupuestos */}
-      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
-        {downloadingPresupuesto && globalConfig && (
+      <div 
+        aria-hidden="true" 
+        style={{ 
+          position: "fixed", 
+          left: 0, 
+          top: 0, 
+          zIndex: -100, 
+          opacity: 0, 
+          pointerEvents: "none", 
+          overflow: "hidden" 
+        }}
+      >
+        {downloadingPresupuesto && (
           <PresupuestoPreview
             id="presupuesto-document-print"
             data={downloadingPresupuesto}
-            config={globalConfig}
+            config={globalConfig || defaultGlobalConfig}
+            isPrinting={true}
           />
         )}
       </div>

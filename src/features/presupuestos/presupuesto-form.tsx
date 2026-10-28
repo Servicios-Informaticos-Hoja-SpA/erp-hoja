@@ -412,8 +412,24 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({ id, onSuccess,
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent showCloseButton={false} className="!max-w-[1000px] !w-[90vw] p-0 overflow-hidden bg-muted/20 border-none shadow-2xl">
           {/* Hidden template for PDF generation */}
-          <div className="fixed left-[-9999px] top-0 pointer-events-none">
-            <PresupuestoPreview data={currentData} config={config} isPrinting={true} />
+          <div 
+            aria-hidden="true" 
+            style={{ 
+              position: "fixed", 
+              left: 0, 
+              top: 0, 
+              zIndex: -100, 
+              opacity: 0, 
+              pointerEvents: "none", 
+              overflow: "hidden" 
+            }}
+          >
+            <PresupuestoPreview 
+              id="presupuesto-document-print" 
+              data={currentData} 
+              config={config} 
+              isPrinting={true} 
+            />
           </div>
           
           <DialogHeader className="p-4 bg-[#abaafd] text-[#2e3c7e] border-b border-[#2e3c7e]/10 flex flex-row items-center justify-between shrink-0">
